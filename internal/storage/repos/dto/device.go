@@ -7,7 +7,7 @@ import (
 
 type CreateDeviceArgs struct {
 	DeviceType      models.DeviceType
-	DeviceID        uuid.UUID
+	DeviceHash      uuid.UUID
 	Platform        string
 	PlatformVersion string
 	AppVersion      string

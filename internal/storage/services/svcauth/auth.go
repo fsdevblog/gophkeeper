@@ -30,8 +30,6 @@ type Options struct {
 type AuthService struct {
 	// uow provides access to Unit of Work for repository operations.
 	uow uow.UOW
-	// userRepo represents the repository for user operations.
-	userRepo UserRepository
 	// psswdHasher provides password hashing functionality.
 	psswdHasher PasswordHasher
 	// jwtTokenSecret contains the secret key for JWT token generation.
@@ -50,7 +48,7 @@ type AuthService struct {
 // Returns:
 //   - pointer to AuthService
 //   - error if initialization fails
-func New(u uow.UOW, jwtSecret []byte, opts ...func(*Options)) (*AuthService, error) {
+func New(u uow.UOW, jwtSecret []byte, opts ...func(*Options)) *AuthService {
 	options := Options{
 		JWTTokenExpiration: JWTTokenExpiration,
 	}
@@ -59,16 +57,11 @@ func New(u uow.UOW, jwtSecret []byte, opts ...func(*Options)) (*AuthService, err
 		opt(&options)
 	}
 
-	userRepo, errUserRepo := uow.GetRepositoryAs[UserRepository](u, uow.RepoName(repodto.UserRepoName))
-	if errUserRepo != nil {
-		return nil, fmt.Errorf("init auth service: %w", errUserRepo)
-	}
 	return &AuthService{
 		uow:            u,
-		userRepo:       userRepo,
 		jwtTokenSecret: jwtSecret,
 		psswdHasher:    new(psswd.PasswordHash),
-	}, nil
+	}
 }
 
 // AuthenticateArgs contains arguments for the Authenticate method.

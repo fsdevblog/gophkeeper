@@ -89,7 +89,7 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 				Password: validPassword,
 				Device: repodto.CreateDeviceArgs{
 					DeviceType:      models.DeviceTypeCLI,
-					DeviceID:        uuid.New(),
+					DeviceHash:      uuid.New(),
 					Platform:        gofakeit.Word(),
 					PlatformVersion: gofakeit.AppVersion(),
 					AppVersion:      gofakeit.AppVersion(),
@@ -115,10 +115,9 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 		MinTimes(1)
 
 	// lets go.
-	svc, errSvc := New(s.mockUOW, []byte("secret"))
+	svc := New(s.mockUOW, []byte("secret"))
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
-			s.Require().NoError(errSvc)
 			token, user, err := svc.Authenticate(s.T().Context(), tt.args)
 			if tt.wantErr != nil {
 				s.Require().Error(err)
@@ -168,7 +167,7 @@ func (s *AuthServiceSuite) TestRegister() {
 				Password: password,
 				Device: repodto.CreateDeviceArgs{
 					DeviceType:      models.DeviceTypeCLI,
-					DeviceID:        uuid.New(),
+					DeviceHash:      uuid.New(),
 					Platform:        gofakeit.Word(),
 					PlatformVersion: gofakeit.AppVersion(),
 					AppVersion:      gofakeit.AppVersion(),
@@ -182,8 +181,7 @@ func (s *AuthServiceSuite) TestRegister() {
 		},
 	}
 
-	svc, errSvc := New(s.mockUOW, []byte("secret"))
-	s.Require().NoError(errSvc)
+	svc := New(s.mockUOW, []byte("secret"))
 
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
