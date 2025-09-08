@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/fsdevblog/gophkeeper/internal/domain"
 	"github.com/fsdevblog/gophkeeper/internal/tokens"
 
@@ -77,6 +79,7 @@ func New(u uow.UOW, jwtSecret []byte, opts ...func(*Options)) (*AuthService, err
 type AuthenticateArgs struct {
 	Username string
 	Password string
+	Device   repodto.CreateDeviceArgs
 }
 
 // Authenticate verifies user credentials and generates a JWT token.
@@ -91,18 +94,37 @@ type AuthenticateArgs struct {
 //   - pointer to user model
 //   - error in case of authentication failure (ErrInvalidPassword) or other issues
 func (a *AuthService) Authenticate(ctx context.Context, args AuthenticateArgs) (string, *models.User, error) {
-	user, errUser := a.userRepo.FindByUsername(ctx, args.Username)
-	if errUser != nil {
-		return "", nil, fmt.Errorf("authenticate: %w", errUser)
-	}
-	if !a.psswdHasher.ComparePassword(args.Password, user.EncryptedPassword) {
-		return "", nil, fmt.Errorf("authenticate: %w", ErrInvalidPassword)
+	var user *models.User
+	var token string
+	err := a.uow.Do(ctx, func(doCtx context.Context, tx uow.TX) error {
+		var errUser, errToken error
+		userRepo, errUserRepo := uow.GetAs[UserRepository](tx, uow.RepoName(repodto.UserRepoName))
+		if errUserRepo != nil {
+			return errUserRepo //nolint:wrapcheck
+		}
+		user, errUser = userRepo.FindByUsername(doCtx, args.Username)
+		if errUser != nil {
+			return errUser //nolint:wrapcheck
+		}
+		if !a.psswdHasher.ComparePassword(args.Password, user.EncryptedPassword) {
+			return ErrInvalidPassword
+		}
+
+		if errDevice := a.createDevice(doCtx, tx, user.ID, args.Device); errDevice != nil {
+			return errDevice //nolint:wrapcheck
+		}
+
+		token, errToken = a.genToken(user)
+		if errToken != nil {
+			return errToken //nolint:wrapcheck
+		}
+		return nil
+	})
+
+	if err != nil {
+		return "", nil, fmt.Errorf("authenticate: %w", err)
 	}
 
-	token, errToken := a.genToken(user)
-	if errToken != nil {
-		return "", nil, fmt.Errorf("authenticate: %w", errToken)
-	}
 	return token, user, nil
 }
 
@@ -114,6 +136,7 @@ func (a *AuthService) Authenticate(ctx context.Context, args AuthenticateArgs) (
 type RegisterArgs struct {
 	Username string
 	Password string
+	Device   repodto.CreateDeviceArgs
 }
 
 // Register creates a new user account and generates a JWT token.
@@ -127,22 +150,73 @@ type RegisterArgs struct {
 //   - pointer to the newly created user model
 //   - error in case of registration failure (ErrUserAlreadyRegistered) or other issues
 func (a *AuthService) Register(ctx context.Context, args RegisterArgs) (string, *models.User, error) {
-	user, errCreate := a.userRepo.CreateUser(ctx, repodto.CreateUserArgs{
+	var user *models.User
+	var token string
+	err := a.uow.Do(ctx, func(doCtx context.Context, tx uow.TX) error {
+		var errCreateUser, errToken error
+
+		user, errCreateUser = a.createUser(doCtx, tx, repodto.CreateUserArgs{
+			Username: args.Username,
+			Password: args.Password,
+		})
+		if errCreateUser != nil {
+			return errCreateUser //nolint:wrapcheck
+		}
+
+		if errCreateDevice := a.createDevice(doCtx, tx, user.ID, args.Device); errCreateDevice != nil {
+			return errCreateDevice //nolint:wrapcheck
+		}
+
+		token, errToken = a.genToken(user)
+		if errToken != nil {
+			return errToken //nolint:wrapcheck
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", nil, fmt.Errorf("register: %w", err)
+	}
+	return token, user, nil
+}
+
+func (a *AuthService) createDevice(
+	ctx context.Context,
+	tx uow.TX,
+	userID uuid.UUID,
+	args repodto.CreateDeviceArgs,
+) error {
+	deviceRepo, errRepo := uow.GetAs[DeviceRepository](tx, uow.RepoName(repodto.DeviceRepoName))
+	if errRepo != nil {
+		return errRepo //nolint:wrapcheck
+	}
+
+	if err := deviceRepo.Create(ctx, userID, args); err != nil {
+		if errors.Is(err, domain.ErrDuplicateKey) {
+			return nil
+		}
+		return err //nolint:wrapcheck
+	}
+	return nil
+}
+
+func (a *AuthService) createUser(ctx context.Context, tx uow.TX, args repodto.CreateUserArgs) (*models.User, error) {
+	userRepo, errUserRepo := uow.GetAs[UserRepository](tx, uow.RepoName(repodto.UserRepoName))
+	if errUserRepo != nil {
+		return nil, errUserRepo // nolint:wrapcheck
+	}
+	user, errCreateUser := userRepo.Create(ctx, repodto.CreateUserArgs{
 		Username: args.Username,
 		Password: args.Password,
 	})
-	if errCreate != nil {
-		if errors.Is(errCreate, domain.ErrDuplicateKey) {
-			return "", nil, fmt.Errorf("register: %w", ErrUserAlreadyRegistered)
+	if errCreateUser != nil {
+		if errors.Is(errCreateUser, domain.ErrDuplicateKey) {
+			return nil, ErrUserAlreadyRegistered
 		}
-		return "", nil, fmt.Errorf("register: %w", errCreate)
+		return nil, errCreateUser //nolint:wrapcheck
 	}
-
-	token, errToken := a.genToken(user)
-	if errToken != nil {
-		return "", nil, fmt.Errorf("register: %w", errToken)
-	}
-	return token, user, nil
+	return user, nil
 }
 
 // genToken generates a JWT token for the given user.

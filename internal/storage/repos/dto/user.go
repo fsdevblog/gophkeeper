@@ -1,11 +1,5 @@
 package dto
 
-type RepoName string
-
-const (
-	UserRepoName RepoName = "user"
-)
-
 type CreateUserArgs struct {
 	Username string
 	Password string

@@ -2,7 +2,11 @@ package svcauth
 
 import (
 	"context"
+	"fmt"
 	"testing"
+
+	"github.com/brianvoe/gofakeit/v7"
+	"github.com/google/uuid"
 
 	"github.com/fsdevblog/gophkeeper/internal/domain"
 
@@ -18,9 +22,11 @@ import (
 
 type AuthServiceSuite struct {
 	suite.Suite
-	ctrl         *gomock.Controller
-	mockUOW      *umocks.MockUOW
-	mockUserRepo *repomocks.MockUserRepository
+	ctrl           *gomock.Controller
+	mockUOW        *umocks.MockUOW
+	mockTX         *umocks.MockTX
+	mockUserRepo   *repomocks.MockUserRepository
+	mockDeviceRepo *repomocks.MockDeviceRepository
 }
 
 func TestAuthService(t *testing.T) {
@@ -30,11 +36,32 @@ func TestAuthService(t *testing.T) {
 func (s *AuthServiceSuite) SetupTest() {
 	s.ctrl = gomock.NewController(s.T())
 	s.mockUserRepo = repomocks.NewMockUserRepository(s.ctrl)
+	s.mockDeviceRepo = repomocks.NewMockDeviceRepository(s.ctrl)
 	s.mockUOW = umocks.NewMockUOW(s.ctrl)
+	s.mockTX = umocks.NewMockTX(s.ctrl)
 
 	// configuring mock UOW.
-	s.mockUOW.EXPECT().GetRepository(uow.RepoName(repodto.UserRepoName)).
-		Return(s.mockUserRepo, nil).AnyTimes()
+	s.mockUOW.EXPECT().GetRepository(gomock.Any()).
+		DoAndReturn(func(repoName uow.RepoName) (uow.Repository, error) {
+			return s.repoFactory(repoName)
+		}).AnyTimes()
+
+	// configuring mock TX.
+	s.mockTX.EXPECT().Get(gomock.Any()).
+		DoAndReturn(func(repoName uow.RepoName) (uow.Repository, error) {
+			return s.repoFactory(repoName)
+		}).AnyTimes()
+
+	// configuring mock UOW.Do().
+	s.mockUOW.EXPECT().
+		Do(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			ctx context.Context,
+			fn func(context.Context, uow.TX) error,
+			_ ...func(*uow.TransactionOptions),
+		) error {
+			return fn(ctx, s.mockTX)
+		}).AnyTimes()
 }
 
 func (s *AuthServiceSuite) TearDownTest() {
@@ -56,8 +83,18 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 		wantErr error
 	}{
 		{
-			name:    "success",
-			args:    AuthenticateArgs{Username: validUser.Username, Password: validPassword},
+			name: "success",
+			args: AuthenticateArgs{
+				Username: validUser.Username,
+				Password: validPassword,
+				Device: repodto.CreateDeviceArgs{
+					DeviceType:      models.DeviceTypeCLI,
+					DeviceID:        uuid.New(),
+					Platform:        gofakeit.Word(),
+					PlatformVersion: gofakeit.AppVersion(),
+					AppVersion:      gofakeit.AppVersion(),
+				},
+			},
 			wantErr: nil,
 		}, {
 			name:    "wrong password",
@@ -71,6 +108,11 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 		FindByUsername(gomock.Any(), validUser.Username).
 		Return(validUser, nil).
 		MinTimes(2)
+
+	s.mockDeviceRepo.EXPECT().
+		Create(gomock.Any(), validUser.ID, gomock.Any()).
+		Return(nil).
+		MinTimes(1)
 
 	// lets go.
 	svc, errSvc := New(s.mockUOW, []byte("secret"))
@@ -101,7 +143,7 @@ func (s *AuthServiceSuite) TestRegister() {
 	}
 
 	s.mockUserRepo.EXPECT().
-		CreateUser(gomock.Any(), gomock.Any()).
+		Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, args repodto.CreateUserArgs) (*models.User, error) {
 			if args.Username == successUser.Username {
 				return successUser, nil
@@ -109,17 +151,32 @@ func (s *AuthServiceSuite) TestRegister() {
 			return nil, domain.ErrDuplicateKey
 		}).MinTimes(2)
 
+	s.mockDeviceRepo.EXPECT().
+		Create(gomock.Any(), successUser.ID, gomock.Any()).
+		Return(nil).
+		Times(1)
+
 	tests := []struct {
 		name    string
 		args    RegisterArgs
 		wantErr error
 	}{
 		{
-			name:    "success",
-			args:    RegisterArgs{Username: successUser.Username, Password: password},
+			name: "success",
+			args: RegisterArgs{
+				Username: successUser.Username,
+				Password: password,
+				Device: repodto.CreateDeviceArgs{
+					DeviceType:      models.DeviceTypeCLI,
+					DeviceID:        uuid.New(),
+					Platform:        gofakeit.Word(),
+					PlatformVersion: gofakeit.AppVersion(),
+					AppVersion:      gofakeit.AppVersion(),
+				},
+			},
 			wantErr: nil,
 		}, {
-			name:    "existing",
+			name:    "existing user",
 			args:    RegisterArgs{Username: existingUser.Username, Password: password},
 			wantErr: ErrUserAlreadyRegistered,
 		},
@@ -141,4 +198,14 @@ func (s *AuthServiceSuite) TestRegister() {
 			s.NotEmpty(user)
 		})
 	}
+}
+
+func (s *AuthServiceSuite) repoFactory(repoName uow.RepoName) (uow.Repository, error) {
+	switch repoName {
+	case uow.RepoName(repodto.UserRepoName):
+		return s.mockUserRepo, nil
+	case uow.RepoName(repodto.DeviceRepoName):
+		return s.mockDeviceRepo, nil
+	}
+	return nil, fmt.Errorf("unknown repository: %s", repoName)
 }
