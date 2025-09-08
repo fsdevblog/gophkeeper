@@ -1,7 +1,10 @@
 package svcauth
 
 import (
+	"context"
 	"testing"
+
+	"github.com/fsdevblog/gophkeeper/internal/domain"
 
 	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	repodto "github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
@@ -80,6 +83,60 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 				s.ErrorIs(err, tt.wantErr)
 				return
 			}
+			s.Require().NoError(err)
+			s.NotEmpty(token)
+			s.NotEmpty(user)
+		})
+	}
+}
+
+func (s *AuthServiceSuite) TestRegister() {
+	password := "<PASSWORD>"
+
+	successUser := &models.User{
+		Username: "test",
+	}
+	existingUser := &models.User{
+		Username: "existing user",
+	}
+
+	s.mockUserRepo.EXPECT().
+		CreateUser(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, args repodto.CreateUserArgs) (*models.User, error) {
+			if args.Username == successUser.Username {
+				return successUser, nil
+			}
+			return nil, domain.ErrDuplicateKey
+		}).MinTimes(2)
+
+	tests := []struct {
+		name    string
+		args    RegisterArgs
+		wantErr error
+	}{
+		{
+			name:    "success",
+			args:    RegisterArgs{Username: successUser.Username, Password: password},
+			wantErr: nil,
+		}, {
+			name:    "existing",
+			args:    RegisterArgs{Username: existingUser.Username, Password: password},
+			wantErr: ErrUserAlreadyRegistered,
+		},
+	}
+
+	svc, errSvc := New(s.mockUOW, []byte("secret"))
+	s.Require().NoError(errSvc)
+
+	for _, tt := range tests {
+		s.Run(tt.name, func() {
+			token, user, err := svc.Register(s.T().Context(), tt.args)
+			if tt.wantErr != nil {
+				s.Require().Error(err)
+				s.ErrorIs(err, tt.wantErr)
+				return
+			}
+			s.Require().NoError(err)
 			s.NotEmpty(token)
 			s.NotEmpty(user)
 		})

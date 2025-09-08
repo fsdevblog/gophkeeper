@@ -2,13 +2,16 @@ package svcauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/fsdevblog/gophkeeper/internal/domain"
+	"github.com/fsdevblog/gophkeeper/internal/tokens"
 
 	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	repodto "github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth/psswd"
-	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth/tokens"
 	"github.com/fsdevblog/gophkeeper/internal/storage/uow"
 )
 
@@ -96,9 +99,71 @@ func (a *AuthService) Authenticate(ctx context.Context, args AuthenticateArgs) (
 		return "", nil, fmt.Errorf("authenticate: %w", ErrInvalidPassword)
 	}
 
-	token, errToken := tokens.GenerateUserJWT(user.ID, a.tokenExpire, a.jwtTokenSecret)
+	token, errToken := a.genToken(user)
 	if errToken != nil {
 		return "", nil, fmt.Errorf("authenticate: %w", errToken)
 	}
 	return token, user, nil
+}
+
+// RegisterArgs contains arguments for the Register method.
+//
+// Fields:
+//   - Username: desired username for the new user.
+//   - Password: desired password for the new user (sensitive information).
+type RegisterArgs struct {
+	Username string
+	Password string
+}
+
+// Register creates a new user account and generates a JWT token.
+//
+// Parameters:
+//   - ctx: execution context
+//   - args: registration arguments containing username and password
+//
+// Returns:
+//   - JWT token as string
+//   - pointer to the newly created user model
+//   - error in case of registration failure (ErrUserAlreadyRegistered) or other issues
+func (a *AuthService) Register(ctx context.Context, args RegisterArgs) (string, *models.User, error) {
+	user, errCreate := a.userRepo.CreateUser(ctx, repodto.CreateUserArgs{
+		Username: args.Username,
+		Password: args.Password,
+	})
+	if errCreate != nil {
+		if errors.Is(errCreate, domain.ErrDuplicateKey) {
+			return "", nil, fmt.Errorf("register: %w", ErrUserAlreadyRegistered)
+		}
+		return "", nil, fmt.Errorf("register: %w", errCreate)
+	}
+
+	token, errToken := a.genToken(user)
+	if errToken != nil {
+		return "", nil, fmt.Errorf("register: %w", errToken)
+	}
+	return token, user, nil
+}
+
+// genToken generates a JWT token for the given user.
+//
+// Parameters:
+//   - user: pointer to the user model requiring token generation
+//
+// Returns:
+//   - string: generated JWT token
+//   - error: if user is nil, has empty ID, or token generation fails
+func (a *AuthService) genToken(user *models.User) (string, error) {
+	if user == nil {
+		return "", errors.New("generate token: user is nil")
+	}
+
+	if user.ID.String() == "" {
+		return "", errors.New("generate token: user ID is empty")
+	}
+	token, err := tokens.GenerateUserJWT(user.ID, a.tokenExpire, a.jwtTokenSecret)
+	if err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
+	return token, nil
 }
