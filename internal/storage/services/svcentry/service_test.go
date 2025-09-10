@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fsdevblog/gophkeeper/internal/pag"
+
 	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	repodto "github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
 	emocks "github.com/fsdevblog/gophkeeper/internal/storage/services/svcentry/mocks"
@@ -59,6 +61,13 @@ func (s *EntryServiceSuite) SetupTest() {
 		) error {
 			return fn(ctx, s.mockTX)
 		}).AnyTimes()
+
+	// configuring mock UOW.Do().
+	s.mockUOW.EXPECT().DoWithIsolation(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, fn func(context.Context, uow.TX) error, _ uow.IsolationLevel, _ uint) error {
+			return fn(s.T().Context(), s.mockTX)
+		},
+	).AnyTimes()
 }
 
 func (s *EntryServiceSuite) TearDownTest() {
@@ -139,6 +148,92 @@ func (s *EntryServiceSuite) TestCreateEntry() {
 		s.NotEmpty(entry.EntryFields)
 		s.Len(entry.EntryFields, len(testingArgs.EntryFields))
 	})
+}
+
+func (s *EntryServiceSuite) TestGetUserEntries() {
+	testingUserUUID := uuid.New()
+	userEntryID := uuid.New()
+	pagination := pag.New()
+	wantEntryFields := []models.EntryField{
+		{
+			BaseModel: &models.BaseModel{
+				ID: uuid.New(),
+			},
+			EntryID:   userEntryID,
+			Key:       "login",
+			Value:     []byte("test"),
+			IsPrivate: false,
+		}, {
+			BaseModel: &models.BaseModel{
+				ID: uuid.New(),
+			},
+			EntryID:   userEntryID,
+			Key:       "password",
+			Value:     []byte("<PASSWORD>"),
+			IsPrivate: true,
+		}, {
+			BaseModel: &models.BaseModel{
+				ID: uuid.New(),
+			},
+			EntryID:   userEntryID,
+			Key:       "url",
+			Value:     []byte("https://auth.test.com"),
+			IsPrivate: false,
+		},
+	}
+	wantEntries := []models.Entry{
+		{
+			BaseModel: &models.BaseModel{
+				ID: userEntryID,
+			},
+			UserID:    testingUserUUID,
+			DeviceID:  uuid.New(),
+			EntryType: models.EntryTypeAuth,
+			Title:     "test.com",
+		},
+	}
+	svc := New(s.mockUOW)
+	// configure mock EntryRepository.
+	s.mockEntryRepo.EXPECT().
+		GetAllByUser(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
+			_ context.Context,
+			userID uuid.UUID,
+			limit int32,
+			offset int32,
+		) ([]models.Entry, int, error) {
+			// checking entire arguments.
+			s.Equal(testingUserUUID, userID)
+			s.Equal(pagination.Limit(), limit)
+			s.Equal(pagination.Offset(), offset)
+			return wantEntries, len(wantEntries), nil
+		}).
+		Times(1)
+
+	s.mockEntryRepo.EXPECT().
+		GetCountByUser(gomock.Any(), testingUserUUID).
+		Return(int64(len(wantEntries)), nil).
+		Times(1)
+
+	// configure mock EntryFieldRepository.
+	s.mockEntryFieldRepo.EXPECT().
+		GetFieldsByEntryIDs(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, entryIDs []uuid.UUID) ([]models.EntryField, error) {
+			var expectingEntryIDs = make([]uuid.UUID, len(wantEntries))
+			for i, entry := range wantEntries {
+				expectingEntryIDs[i] = entry.ID
+			}
+			// checking entryIDs, it must be equal to the IDs of entries we got from the mock EntryRepository.GetAllByUser().
+			s.Equal(expectingEntryIDs, entryIDs)
+			return wantEntryFields, nil
+		}).
+		Times(1)
+
+	// lets go testing!!
+	entries, totalRecords, err := svc.GetUserEntries(s.T().Context(), testingUserUUID, pagination)
+	s.Require().NoError(err)
+	s.Equal(int64(len(wantEntries)), totalRecords)
+	s.Equal(wantEntryFields, entries[0].EntryFields)
 }
 
 func (s *EntryServiceSuite) repoFactory(repoName uow.RepoName) (uow.Repository, error) {

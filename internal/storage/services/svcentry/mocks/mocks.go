@@ -58,6 +58,36 @@ func (mr *MockEntryRepositoryMockRecorder) Create(ctx, args any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockEntryRepository)(nil).Create), ctx, args)
 }
 
+// GetAllByUser mocks base method.
+func (m *MockEntryRepository) GetAllByUser(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]models.Entry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllByUser", ctx, userID, limit, offset)
+	ret0, _ := ret[0].([]models.Entry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllByUser indicates an expected call of GetAllByUser.
+func (mr *MockEntryRepositoryMockRecorder) GetAllByUser(ctx, userID, limit, offset any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllByUser", reflect.TypeOf((*MockEntryRepository)(nil).GetAllByUser), ctx, userID, limit, offset)
+}
+
+// GetCountByUser mocks base method.
+func (m *MockEntryRepository) GetCountByUser(ctx context.Context, userID uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCountByUser", ctx, userID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCountByUser indicates an expected call of GetCountByUser.
+func (mr *MockEntryRepositoryMockRecorder) GetCountByUser(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCountByUser", reflect.TypeOf((*MockEntryRepository)(nil).GetCountByUser), ctx, userID)
+}
+
 // MockEntryFieldRepository is a mock of EntryFieldRepository interface.
 type MockEntryFieldRepository struct {
 	ctrl     *gomock.Controller
@@ -94,4 +124,19 @@ func (m *MockEntryFieldRepository) BatchCreate(ctx context.Context, entryID uuid
 func (mr *MockEntryFieldRepositoryMockRecorder) BatchCreate(ctx, entryID, fields, resultRow any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCreate", reflect.TypeOf((*MockEntryFieldRepository)(nil).BatchCreate), ctx, entryID, fields, resultRow)
+}
+
+// GetFieldsByEntryIDs mocks base method.
+func (m *MockEntryFieldRepository) GetFieldsByEntryIDs(ctx context.Context, entryIDs []uuid.UUID) ([]models.EntryField, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFieldsByEntryIDs", ctx, entryIDs)
+	ret0, _ := ret[0].([]models.EntryField)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFieldsByEntryIDs indicates an expected call of GetFieldsByEntryIDs.
+func (mr *MockEntryFieldRepositoryMockRecorder) GetFieldsByEntryIDs(ctx, entryIDs any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFieldsByEntryIDs", reflect.TypeOf((*MockEntryFieldRepository)(nil).GetFieldsByEntryIDs), ctx, entryIDs)
 }

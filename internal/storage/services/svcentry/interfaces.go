@@ -12,6 +12,8 @@ import (
 
 type EntryRepository interface {
 	Create(ctx context.Context, args repodto.CreateEntryArgs) (*models.Entry, error)
+	GetAllByUser(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]models.Entry, error)
+	GetCountByUser(ctx context.Context, userID uuid.UUID) (int64, error)
 }
 
 type EntryFieldRepository interface {
@@ -21,4 +23,5 @@ type EntryFieldRepository interface {
 		fields []repodto.CreateEntryFieldArgs,
 		resultRow func(i int, field *models.EntryField, err error),
 	) error
+	GetFieldsByEntryIDs(ctx context.Context, entryIDs []uuid.UUID) ([]models.EntryField, error)
 }
