@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/fsdevblog/gophkeeper/internal/storage/repos"
 
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
 
-	"github.com/fsdevblog/gophkeeper/internal/domain"
-
 	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	repodto "github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
 	repomocks "github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth/mocks"
-	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth/psswd"
 	"github.com/fsdevblog/gophkeeper/internal/storage/uow"
 	umocks "github.com/fsdevblog/gophkeeper/internal/storage/uow/mocks"
 	"github.com/stretchr/testify/suite"
@@ -27,6 +27,7 @@ type AuthServiceSuite struct {
 	mockTX         *umocks.MockTX
 	mockUserRepo   *repomocks.MockUserRepository
 	mockDeviceRepo *repomocks.MockDeviceRepository
+	mockPasswd     *repomocks.MockPasswordHasher
 }
 
 func TestAuthService(t *testing.T) {
@@ -39,6 +40,7 @@ func (s *AuthServiceSuite) SetupTest() {
 	s.mockDeviceRepo = repomocks.NewMockDeviceRepository(s.ctrl)
 	s.mockUOW = umocks.NewMockUOW(s.ctrl)
 	s.mockTX = umocks.NewMockTX(s.ctrl)
+	s.mockPasswd = repomocks.NewMockPasswordHasher(s.ctrl)
 
 	// configuring mock UOW.
 	s.mockUOW.EXPECT().GetRepository(gomock.Any()).
@@ -70,13 +72,19 @@ func (s *AuthServiceSuite) TearDownTest() {
 
 func (s *AuthServiceSuite) TestAuthenticate() {
 	validPassword := "<PASSWORD>"
-	encryptedPassword, errPass := new(psswd.PasswordHash).HashPassword(validPassword)
-	s.Require().NoError(errPass)
+	validHashed := "<VALID_HASHED>"
+	encryptedPassword := validHashed
 
 	validUser := &models.User{
+		BaseModel: &models.BaseModel{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
 		Username:          "test",
 		EncryptedPassword: encryptedPassword,
 	}
+
 	tests := []struct {
 		name    string
 		args    AuthenticateArgs
@@ -87,7 +95,7 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 			args: AuthenticateArgs{
 				Username: validUser.Username,
 				Password: validPassword,
-				Device: repodto.CreateDeviceArgs{
+				Device: DeviceArgs{
 					DeviceType:      models.DeviceTypeCLI,
 					DeviceHash:      uuid.New(),
 					Platform:        gofakeit.Word(),
@@ -99,15 +107,29 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 		}, {
 			name:    "wrong password",
 			args:    AuthenticateArgs{Username: validUser.Username, Password: "<WRONG PASSWORD>"},
-			wantErr: ErrInvalidPassword,
+			wantErr: ErrInvalidCredentials,
+		}, {
+			name:    "unexisting user",
+			args:    AuthenticateArgs{Username: "unexisting", Password: "<PASSWORD>"},
+			wantErr: ErrInvalidCredentials,
 		},
 	}
 
+	s.mockPasswd.EXPECT().
+		ComparePassword(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(password, _ string) bool {
+			return password == validPassword
+		}).MinTimes(1)
+
 	// configuring mock UserRepository.
 	s.mockUserRepo.EXPECT().
-		FindByUsername(gomock.Any(), validUser.Username).
-		Return(validUser, nil).
-		MinTimes(2)
+		FindByUsername(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, username string) (*models.User, error) {
+			if username == validUser.Username {
+				return validUser, nil
+			}
+			return nil, repos.ErrRecordNotFound
+		}).Times(len(tests))
 
 	s.mockDeviceRepo.EXPECT().
 		Create(gomock.Any(), validUser.ID, gomock.Any()).
@@ -116,6 +138,8 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 
 	// lets go.
 	svc := New(s.mockUOW, []byte("secret"))
+	svc.psswdHasher = s.mockPasswd
+
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			token, user, err := svc.Authenticate(s.T().Context(), tt.args)
@@ -125,6 +149,7 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 				return
 			}
 			s.Require().NoError(err)
+			s.Equal(validHashed, user.EncryptedPassword)
 			s.NotEmpty(token)
 			s.NotEmpty(user)
 		})
@@ -133,8 +158,14 @@ func (s *AuthServiceSuite) TestAuthenticate() {
 
 func (s *AuthServiceSuite) TestRegister() {
 	password := "<PASSWORD>"
+	hashedPassword := "<HASHED_PASSWORD>"
 
 	successUser := &models.User{
+		BaseModel: &models.BaseModel{
+			ID:        uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
 		Username: "test",
 	}
 	existingUser := &models.User{
@@ -145,15 +176,26 @@ func (s *AuthServiceSuite) TestRegister() {
 		Create(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, args repodto.CreateUserArgs) (*models.User, error) {
 			if args.Username == successUser.Username {
-				return successUser, nil
+				u := successUser
+				u.EncryptedPassword = hashedPassword
+				return u, nil
 			}
-			return nil, domain.ErrDuplicateKey
-		}).MinTimes(2)
+			return nil, repos.ErrDuplicateKey
+		}).AnyTimes()
 
 	s.mockDeviceRepo.EXPECT().
 		Create(gomock.Any(), successUser.ID, gomock.Any()).
 		Return(nil).
 		Times(1)
+
+	s.mockPasswd.EXPECT().
+		HashPassword(gomock.Any()).
+		DoAndReturn(func(p string) (string, error) {
+			if p == password {
+				return hashedPassword, nil
+			}
+			return "some_other_hash", nil
+		}).Times(2)
 
 	tests := []struct {
 		name    string
@@ -165,7 +207,7 @@ func (s *AuthServiceSuite) TestRegister() {
 			args: RegisterArgs{
 				Username: successUser.Username,
 				Password: password,
-				Device: repodto.CreateDeviceArgs{
+				Device: DeviceArgs{
 					DeviceType:      models.DeviceTypeCLI,
 					DeviceHash:      uuid.New(),
 					Platform:        gofakeit.Word(),
@@ -183,6 +225,9 @@ func (s *AuthServiceSuite) TestRegister() {
 
 	svc := New(s.mockUOW, []byte("secret"))
 
+	// replacing password hashes with mock.
+	svc.psswdHasher = s.mockPasswd
+
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			token, user, err := svc.Register(s.T().Context(), tt.args)
@@ -192,6 +237,7 @@ func (s *AuthServiceSuite) TestRegister() {
 				return
 			}
 			s.Require().NoError(err)
+			s.Equal(hashedPassword, user.EncryptedPassword)
 			s.NotEmpty(token)
 			s.NotEmpty(user)
 		})

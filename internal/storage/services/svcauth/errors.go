@@ -3,7 +3,6 @@ package svcauth
 import "errors"
 
 var (
-	ErrInvalidPassword       = errors.New("password is invalid")
-	ErrInvalidDevice         = errors.New("device is invalid")
+	ErrInvalidCredentials    = errors.New("login or password is invalid")
 	ErrUserAlreadyRegistered = errors.New("user already registered")
 )
