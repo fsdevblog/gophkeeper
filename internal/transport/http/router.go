@@ -2,6 +2,8 @@ package http
 
 import (
 	"fmt"
+	"github.com/fsdevblog/gophkeeper/internal/storage/services"
+	"go.uber.org/zap"
 	"time"
 
 	"github.com/fsdevblog/gophkeeper/internal/transport/http/middlewares"
@@ -13,19 +15,24 @@ const (
 )
 
 type InitArgs struct {
-	JWTSecret   []byte
-	AuthService AuthService
+	JWTSecret []byte
+	Services  *services.Collection
+	Logger    *zap.Logger
 }
 
 func New(params InitArgs) (*gin.Engine, error) {
 	if err := registerValidators(); err != nil {
 		return nil, fmt.Errorf("initialize router: %w", err)
 	}
+
+	authHandler := NewAuthHandler(params.Services.AuthService)
+
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(middlewares.Device())
+	r.Use(middlewares.LoggerMiddleware(params.Logger))
+	r.GET("/ping", authHandler.Ping)
 
-	authHandler := NewAuthHandler(params.AuthService)
+	r.Use(middlewares.Device())
 
 	api := r.Group("/api")
 	api.POST("/login", middlewares.NonAuthRequired(params.JWTSecret), authHandler.Login)

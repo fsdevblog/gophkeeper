@@ -1,11 +1,11 @@
 package pgrepo
 
 import (
+	"github.com/fsdevblog/gophkeeper/internal/db/dbtest"
 	"testing"
 
 	"github.com/fsdevblog/gophkeeper/internal/storage/repos"
 	repodto "github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
-	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo/testutils"
 	"github.com/go-testfixtures/testfixtures/v3"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -26,7 +26,7 @@ func TestUserRepo(t *testing.T) {
 }
 
 func (s *UserRepoSuite) SetupSuite() {
-	pg, errPg := testutils.Connect(s.T().Context())
+	pg, errPg := dbtest.Connect(s.T().Context())
 	s.Require().NoError(errPg)
 
 	s.pgContainer = pg.PgContainer
@@ -42,7 +42,7 @@ func (s *UserRepoSuite) SetupTest() {
 }
 
 func (s *UserRepoSuite) TearDownTest() {
-	err := testutils.ClearTables(s.conn, "users")
+	err := dbtest.ClearTables(s.conn, "users")
 	s.Require().NoError(err)
 }
 

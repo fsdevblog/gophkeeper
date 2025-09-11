@@ -11,4 +11,5 @@ type CreateDeviceArgs struct {
 	Platform        string
 	PlatformVersion string
 	AppVersion      string
+	StateVersion    uuid.UUID
 }

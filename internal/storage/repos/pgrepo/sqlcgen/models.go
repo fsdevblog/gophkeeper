@@ -7,7 +7,22 @@ package sqlcgen
 import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"internal/domain/models"
 )
+
+type Device struct {
+	ID              uuid.UUID
+	CreatedAt       pgtype.Timestamptz
+	UpdatedAt       pgtype.Timestamptz
+	Type            models.DeviceType
+	UserID          uuid.UUID
+	ClientUuid      uuid.UUID
+	Platform        string
+	PlatformVersion string
+	StateVersion    uuid.UUID
+	AppVersion      string
+	LastActiveAt    pgtype.Timestamptz
+}
 
 type User struct {
 	ID                uuid.UUID

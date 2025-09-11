@@ -14,8 +14,7 @@
 .env
 
 # Binaries
-cmd/shortener/main
-cmd/shortener/shortener
+cmd/gophkeeper/gophkeeper
 
 cmd/test
 backup.json

@@ -42,6 +42,10 @@ type UserResponse struct {
 	Username string    `json:"username"`
 }
 
+func (a *AuthHandler) Ping(c *gin.Context) {
+	c.String(http.StatusOK, "pong")
+}
+
 func (a *AuthHandler) Login(c *gin.Context) {
 	var params AuthenticateArgs
 	deviceHash, _ := c.Get(middlewares.DeviceHashContextKey)

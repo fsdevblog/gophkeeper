@@ -13,3 +13,7 @@ sql:
             go_type:
               import: "github.com/google/uuid"
               type: "UUID"
+          - column: "devices.type"
+            go_type:
+              type: "DeviceType"
+              import: "internal/domain/models"

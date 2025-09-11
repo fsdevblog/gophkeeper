@@ -1,4 +1,4 @@
-package testutils
+package dbtest
 
 import (
 	"context"
@@ -24,15 +24,44 @@ type PgConnect struct {
 	Fixtures    *testfixtures.Loader
 }
 
+type ConnectionConfig struct {
+	DatabaseName     string
+	DatabaseUsername string
+	DatabasePassword string
+	DockerImage      string
+	StartupTimeout   time.Duration
+	FixturesPath     string // if empty, fixtures will not be loaded
+}
+
+const (
+	defaultDBName         = "test_db"
+	defaultDBUser         = "testuser"
+	defaultDBPass         = "password"
+	defaultImage          = "postgres:17"
+	defaultStartupTimeout = 15 * time.Second
+	defaultFixturesPath   = "testdata/fixtures"
+)
+
 // Connect поднимает постгрес докер контейнер, выполняет миграции и возвращает PgConnect и ошибку.
-func Connect(ctx context.Context) (*PgConnect, error) {
-	pgContainer, errPgContainer := postgres.Run(ctx, "postgres:17",
-		postgres.WithDatabase("test_db"),
-		postgres.WithUsername("testuser"),
-		postgres.WithPassword("123123123"),
+func Connect(ctx context.Context, opts ...func(*ConnectionConfig)) (*PgConnect, error) {
+	config := ConnectionConfig{
+		DatabaseName:     defaultDBName,
+		DatabaseUsername: defaultDBUser,
+		DatabasePassword: defaultDBPass,
+		DockerImage:      defaultImage,
+		StartupTimeout:   defaultStartupTimeout,
+		FixturesPath:     defaultFixturesPath,
+	}
+	for _, opt := range opts {
+		opt(&config)
+	}
+	pgContainer, errPgContainer := postgres.Run(ctx, config.DockerImage,
+		postgres.WithDatabase(config.DatabaseName),
+		postgres.WithUsername(config.DatabaseUsername),
+		postgres.WithPassword(config.DatabasePassword),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("ready").
-				WithOccurrence(2).WithStartupTimeout(15*time.Second)), //nolint:mnd
+				WithOccurrence(2).WithStartupTimeout(config.StartupTimeout)),
 	)
 	if errPgContainer != nil {
 		return nil, fmt.Errorf("failed to start postgres container: %s", errPgContainer.Error())
@@ -59,11 +88,7 @@ func Connect(ctx context.Context) (*PgConnect, error) {
 		return nil, fmt.Errorf("failed to migrate postgres schema: %s", errMigrations.Error())
 	}
 
-	fixtures, errFixtures := testfixtures.New(
-		testfixtures.Database(sqlDB),
-		testfixtures.Dialect("postgres"),
-		testfixtures.Directory("testdata/fixtures"),
-	)
+	fixtures, errFixtures := createFixtures(sqlDB, config.FixturesPath)
 
 	if errFixtures != nil {
 		return nil, fmt.Errorf("failed to create testfixtures: %s", errFixtures.Error())
@@ -85,6 +110,24 @@ func ClearTables(conn *pgxpool.Pool, tables ...string) error {
 		}
 	}
 	return errs
+}
+
+func createFixtures(sqlDB *sql.DB, fixturesPath string) (*testfixtures.Loader, error) {
+	options := []func(*testfixtures.Loader) error{
+		testfixtures.Database(sqlDB),
+		testfixtures.Dialect("postgres"),
+	}
+
+	if fixturesPath != "" {
+		options = append(options, testfixtures.Directory(fixturesPath))
+	}
+
+	fixtures, err := testfixtures.New(options...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create testfixtures: %w", err)
+	}
+
+	return fixtures, nil
 }
 
 // connectPg создает подключение к бд, и пингует его 10 попыток с интервалом в 300 мс.

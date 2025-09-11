@@ -76,8 +76,8 @@ func (a *App) Run() error {
 
 func (a *App) startHTTPServer(ctx context.Context) error {
 	router, errRouter := apphttp.New(apphttp.InitArgs{
-		JWTSecret:   []byte(a.config.JWTSecret),
-		AuthService: a.serviceCollection.AuthService,
+		JWTSecret: []byte(a.config.JWTSecret),
+		Services:  a.serviceCollection,
 	})
 	if errRouter != nil {
 		return fmt.Errorf("start HTTP server: %w", errRouter)
