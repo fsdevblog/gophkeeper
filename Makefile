@@ -7,6 +7,9 @@ db-down:
 sqlc:
 	rm -rf internal/storage/repos/sqlc/sqlcgen/* && docker compose run --rm sqlc
 
+app-up:	db-up
+	go run ./cmd/gophkeeper/main.go -s secret -d $(DATABASE_DSN)
+
 
 # Создать миграцию
 migrate-create:
