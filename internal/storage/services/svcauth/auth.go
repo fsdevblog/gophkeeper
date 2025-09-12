@@ -210,6 +210,7 @@ func (a *AuthService) createDevice(
 		Platform:        args.Platform,
 		PlatformVersion: args.PlatformVersion,
 		AppVersion:      args.AppVersion,
+		StateVersion:    uuid.Nil,
 	})
 	if err != nil {
 		if errors.Is(err, repos.ErrDuplicateKey) {

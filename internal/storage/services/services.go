@@ -1,15 +1,16 @@
 package services
 
 import (
-	"context"
 	"fmt"
+	"github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
+	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo"
+	"time"
+
 	"github.com/fsdevblog/gophkeeper/internal/config"
-	"github.com/fsdevblog/gophkeeper/internal/db/migrations"
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth"
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcentry"
 	"github.com/fsdevblog/gophkeeper/internal/storage/uow"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"time"
 )
 
 type Collection struct {
@@ -18,55 +19,42 @@ type Collection struct {
 	EntryService *svcentry.EntryService
 }
 
-func NewCollection(ctx context.Context, config *config.Config) (*Collection, error) {
+func NewCollection(config *config.Config, conn *pgxpool.Pool) (*Collection, error) {
 	c := &Collection{
 		config: config,
 	}
-	conn, errConn := c.dbUp(ctx)
-	if errConn != nil {
-		return nil, fmt.Errorf("failed to dbUp: %w", errConn)
+	if err := c.initServices(conn); err != nil {
+		return nil, fmt.Errorf("init service collection: %w", err)
 	}
-	c.initServices(conn)
 	return c, nil
 }
 
-func (c *Collection) initServices(conn *pgxpool.Pool) {
-	unitOfWork := uow.New(conn)
+func (c *Collection) initServices(conn *pgxpool.Pool) error {
+	unitOfWork, errUOW := c.initUOW(conn)
+	if errUOW != nil {
+		return fmt.Errorf("init services: %w", errUOW)
+	}
 	c.AuthService = svcauth.New(unitOfWork, []byte(c.config.JWTSecret), func(opt *svcauth.Options) {
 		opt.JWTTokenExpiration = time.Duration(c.config.JWTExpireInSeconds) * time.Second
 	})
 	c.EntryService = svcentry.New(unitOfWork)
+	return nil
 }
 
-func (c *Collection) dbUp(ctx context.Context) (*pgxpool.Pool, error) {
-	pool, errPool := newPostgresConnection(ctx, c.config.DatabaseDSN)
-	if errPool != nil {
-		return nil, fmt.Errorf("failed to create postgres connection: %w", errPool)
+func (c *Collection) initUOW(conn *pgxpool.Pool) (*uow.UnitOfWork, error) {
+	unitOfWork := uow.New(conn)
+	var repos = make(map[uow.RepoName]uow.RepositoryFactory, 2)
+	{
+		repos[uow.RepoName(dto.UserRepoName)] = func(dbtx uow.DBTX) uow.Repository {
+			return pgrepo.NewUserRepo(dbtx)
+		}
+		repos[uow.RepoName(dto.DeviceRepoName)] = func(dbtx uow.DBTX) uow.Repository {
+			return pgrepo.NewDeviceRepo(dbtx)
+		}
 	}
 
-	if err := migrations.PostgresMigrate(c.config.DatabaseDSN); err != nil {
-		return nil, fmt.Errorf("failed to migrate postgres schema: %w", err)
+	if err := unitOfWork.MassRegister(repos); err != nil {
+		return nil, fmt.Errorf("register repositories: %w", err)
 	}
-	return pool, nil
-}
-
-// newPostgresConnection создает новый пул подключений к PostgreSQL.
-//
-// Параметры:
-//   - ctx: контекст выполнения
-//   - dsn: строка подключения к базе данных (Data Source Name)
-//
-// Возвращает:
-//   - *pgxpool.Pool: пул подключений к PostgreSQL
-//   - error: ошибка создания подключения
-func newPostgresConnection(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
-	poolConfig, confErr := pgxpool.ParseConfig(dsn)
-	if confErr != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", confErr)
-	}
-	pool, poolErr := pgxpool.NewWithConfig(ctx, poolConfig)
-	if poolErr != nil {
-		return nil, fmt.Errorf("failed to create pool: %w", poolErr)
-	}
-	return pool, nil
+	return unitOfWork, nil
 }

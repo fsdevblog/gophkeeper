@@ -61,7 +61,7 @@ func Connect(ctx context.Context, opts ...func(*ConnectionConfig)) (*PgConnect, 
 		postgres.WithPassword(config.DatabasePassword),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("ready").
-				WithOccurrence(2).WithStartupTimeout(config.StartupTimeout)),
+				WithOccurrence(2).WithStartupTimeout(config.StartupTimeout)), //nolint:mnd
 	)
 	if errPgContainer != nil {
 		return nil, fmt.Errorf("failed to start postgres container: %s", errPgContainer.Error())

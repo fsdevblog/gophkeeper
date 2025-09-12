@@ -5,9 +5,9 @@
 package sqlcgen
 
 import (
+	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	"internal/domain/models"
 )
 
 type Device struct {

@@ -4,25 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/fsdevblog/gophkeeper/internal/config"
-	"github.com/fsdevblog/gophkeeper/internal/storage/services"
-	apphttp "github.com/fsdevblog/gophkeeper/internal/transport/http"
-	"go.uber.org/zap"
+	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo"
 	"net"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/fsdevblog/gophkeeper/internal/config"
+	"github.com/fsdevblog/gophkeeper/internal/storage/services"
+	apphttp "github.com/fsdevblog/gophkeeper/internal/transport/http"
+	"go.uber.org/zap"
 )
 
 const (
-	defaultShutdownTimeout  = 5 * time.Second
-	defaultMigrationTimeout = 60 * time.Second
+	defaultShutdownTimeout             = 5 * time.Second
+	defaultMigrationTimeout            = 60 * time.Second
+	defaultHTTPServerReadHeaderTimeout = 3 * time.Second
 )
 
 type Options struct {
-	ShutdownTimeout  time.Duration
-	MigrationTimeout time.Duration
+	ShutdownTimeout             time.Duration
+	MigrationTimeout            time.Duration
+	HTTPServerReadHeaderTimeout time.Duration
 }
 
 type App struct {
@@ -30,7 +34,8 @@ type App struct {
 	l                 *zap.Logger
 	serviceCollection *services.Collection
 
-	shutdownTimeout time.Duration
+	shutdownTimeout             time.Duration
+	httpServerReadHeaderTimeout time.Duration
 }
 
 func Must(a *App, err error) *App {
@@ -42,8 +47,9 @@ func Must(a *App, err error) *App {
 
 func New(conf *config.Config, l *zap.Logger, opts ...func(*Options)) (*App, error) {
 	options := Options{
-		ShutdownTimeout:  defaultShutdownTimeout,
-		MigrationTimeout: defaultMigrationTimeout,
+		ShutdownTimeout:             defaultShutdownTimeout,
+		MigrationTimeout:            defaultMigrationTimeout,
+		HTTPServerReadHeaderTimeout: defaultHTTPServerReadHeaderTimeout,
 	}
 	for _, opt := range opts {
 		opt(&options)
@@ -51,9 +57,14 @@ func New(conf *config.Config, l *zap.Logger, opts ...func(*Options)) (*App, erro
 	initServiceCtx, cancel := context.WithTimeout(context.Background(), options.MigrationTimeout)
 	defer cancel()
 
-	collection, errCollection := services.NewCollection(initServiceCtx, conf)
+	conn, errConn := pgrepo.DBUp(initServiceCtx, conf.DatabaseDSN)
+	if errConn != nil {
+		return nil, fmt.Errorf("initialize app: %w", errConn)
+	}
+
+	collection, errCollection := services.NewCollection(conf, conn)
 	if errCollection != nil {
-		return nil, errCollection
+		return nil, fmt.Errorf("initialize app: %w", errCollection)
 	}
 	return &App{
 		config:            conf,
@@ -78,16 +89,19 @@ func (a *App) startHTTPServer(ctx context.Context) error {
 	router, errRouter := apphttp.New(apphttp.InitArgs{
 		JWTSecret: []byte(a.config.JWTSecret),
 		Services:  a.serviceCollection,
+		Logger:    a.l,
 	})
 	if errRouter != nil {
 		return fmt.Errorf("start HTTP server: %w", errRouter)
 	}
 
 	httpSrv := &http.Server{
-		Addr:    a.config.HTTPServerAddr,
-		Handler: router,
+		Addr:              a.config.HTTPServerAddr,
+		Handler:           router,
+		ReadHeaderTimeout: a.httpServerReadHeaderTimeout,
 	}
-	lis, errLis := net.Listen("tcp", a.config.HTTPServerAddr)
+	lc := net.ListenConfig{}
+	lis, errLis := lc.Listen(ctx, "tcp", a.config.HTTPServerAddr)
 	if errLis != nil {
 		return fmt.Errorf("start HTTP server: %w", errLis)
 	}
@@ -103,5 +117,8 @@ func (a *App) startHTTPServer(ctx context.Context) error {
 	}()
 
 	serverError = httpSrv.Serve(lis)
-	return serverError
+	if serverError != nil && !errors.Is(serverError, http.ErrServerClosed) {
+		return fmt.Errorf("start HTTP server: %w", serverError)
+	}
+	return nil
 }

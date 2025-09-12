@@ -11,7 +11,7 @@ type Config struct {
 	HTTPServerAddr     string `env:"HTTP_SERVER_ADDR" envDefault:":8080"`
 	DatabaseDSN        string `env:"DATABASE_DSN"`
 	JWTSecret          string `env:"JWT_SECRET"`
-	JWTExpireInSeconds int    `env:"JWT_EXPIRE" envDefault:"3600"`
+	JWTExpireInSeconds int    `env:"JWT_EXPIRE"       envDefault:"3600"`
 }
 
 func MustLoadConfig() *Config {

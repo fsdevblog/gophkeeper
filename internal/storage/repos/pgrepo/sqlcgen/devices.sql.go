@@ -8,15 +8,18 @@ package sqlcgen
 import (
 	"context"
 
+	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
-	"internal/domain/models"
 )
 
 const devices_Create = `-- name: Devices_Create :one
 INSERT INTO devices
-    (type, user_id, client_uuid, platform, platform_version, state_version, app_version, last_active_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    (type, user_id, client_uuid, platform, platform_version, state_version, app_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+ON CONFLICT (user_id, client_uuid)
+    DO UPDATE SET
+                  updated_at = NOW(),
+                  last_active_at = NOW()
 RETURNING id, created_at, updated_at, type, user_id, client_uuid, platform, platform_version, state_version, app_version, last_active_at
 `
 
@@ -28,7 +31,6 @@ type Devices_CreateParams struct {
 	PlatformVersion string
 	StateVersion    uuid.UUID
 	AppVersion      string
-	LastActiveAt    pgtype.Timestamptz
 }
 
 func (q *Queries) Devices_Create(ctx context.Context, arg Devices_CreateParams) (Device, error) {
@@ -40,7 +42,6 @@ func (q *Queries) Devices_Create(ctx context.Context, arg Devices_CreateParams) 
 		arg.PlatformVersion,
 		arg.StateVersion,
 		arg.AppVersion,
-		arg.LastActiveAt,
 	)
 	var i Device
 	err := row.Scan(

@@ -16,4 +16,4 @@ sql:
           - column: "devices.type"
             go_type:
               type: "DeviceType"
-              import: "internal/domain/models"
+              import: "github.com/fsdevblog/gophkeeper/internal/domain/models"
