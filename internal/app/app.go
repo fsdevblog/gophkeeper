@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo"
 	"net"
 	"net/http"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo"
 
 	"github.com/fsdevblog/gophkeeper/internal/config"
 	"github.com/fsdevblog/gophkeeper/internal/storage/services"
@@ -87,9 +88,9 @@ func (a *App) Run() error {
 
 func (a *App) startHTTPServer(ctx context.Context) error {
 	router, errRouter := apphttp.New(apphttp.InitArgs{
-		JWTSecret: []byte(a.config.JWTSecret),
-		Services:  a.serviceCollection,
-		Logger:    a.l,
+		JWTSecret:   []byte(a.config.JWTSecret),
+		AuthService: a.serviceCollection.AuthService,
+		Logger:      a.l,
 	})
 	if errRouter != nil {
 		return fmt.Errorf("start HTTP server: %w", errRouter)

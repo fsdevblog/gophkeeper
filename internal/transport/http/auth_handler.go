@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth"
@@ -23,18 +24,18 @@ func NewAuthHandler(authService AuthService) *AuthHandler {
 	}
 }
 
-// DeviceArgs fields for device registration. DeviceHash must present in each HTTP header.
-type DeviceArgs struct {
-	DeviceType      models.DeviceType `json:"deviceType"`
-	Platform        string            `json:"platform"`
-	PlatformVersion string            `json:"platformVersion"`
-	AppVersion      string            `json:"appVersion"`
+// DeviceParams fields for device registration. DeviceHash must present in each HTTP header.
+type DeviceParams struct {
+	DeviceType      models.DeviceType `binding:"required" json:"deviceType"`
+	Platform        string            `binding:"required,max=32" json:"platform"`
+	PlatformVersion string            `binding:"required,max=16" json:"platformVersion"`
+	AppVersion      string            `binding:"required,max=16" json:"appVersion"`
 }
 
-type AuthenticateArgs struct {
-	Username string     `binding:"required,min=1,max=15" json:"username"`
-	Password string     `binding:"required,min=6,max=72" json:"password"`
-	Device   DeviceArgs `binding:"required"              json:"device"`
+type AuthenticateParams struct {
+	Username string       `binding:"required,min=1,max=15" json:"username"`
+	Password string       `binding:"required,min=6,max_bytes=72" json:"password"`
+	Device   DeviceParams `binding:"required"              json:"device"`
 }
 
 type UserResponse struct {
@@ -47,7 +48,7 @@ func (a *AuthHandler) Ping(c *gin.Context) {
 }
 
 func (a *AuthHandler) Login(c *gin.Context) {
-	var params AuthenticateArgs
+	var params AuthenticateParams
 	deviceHash, _ := c.Get(middlewares.DeviceHashContextKey)
 
 	if errBind := c.ShouldBindJSON(&params); errBind != nil {
@@ -65,8 +66,8 @@ func (a *AuthHandler) Login(c *gin.Context) {
 	defer cancel()
 
 	token, user, err := a.authService.Authenticate(ctx, svcauth.AuthenticateArgs{
-		Username: params.Username,
-		Password: params.Password,
+		Username: strings.TrimSpace(params.Username),
+		Password: strings.TrimSpace(params.Password),
 		Device: svcauth.DeviceArgs{
 			DeviceType: params.Device.DeviceType,
 			// no need to check return value bcoz middleware checks it.
@@ -88,6 +89,55 @@ func (a *AuthHandler) Login(c *gin.Context) {
 	}
 	c.Header("Authorization", "Bearer "+token)
 
+	c.JSON(http.StatusOK, gin.H{"user": UserResponse{
+		ID:       user.ID,
+		Username: user.Username,
+	}})
+}
+
+type RegisterParams struct {
+	Username string       `binding:"required,min=1,max=15" json:"username"`
+	Password string       `binding:"required,min=6,max_bytes=72" json:"password"`
+	Device   DeviceParams `binding:"required"              json:"device"`
+}
+
+func (a *AuthHandler) Register(c *gin.Context) {
+	var params RegisterParams
+	deviceHash, _ := c.Get(middlewares.DeviceHashContextKey)
+	if errBind := c.ShouldBindJSON(&params); errBind != nil {
+		var errValidator validator.ValidationErrors
+		if errors.As(errBind, &errValidator) {
+			_ = c.AbortWithError(http.StatusUnprocessableEntity, errBind).
+				SetType(gin.ErrorTypeBind)
+			return
+		}
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := context.WithTimeout(c, DefaultServiceTimeout)
+	defer cancel()
+	token, user, err := a.authService.Register(ctx, svcauth.RegisterArgs{
+		Username: strings.TrimSpace(params.Username),
+		Password: strings.TrimSpace(params.Password),
+		Device: svcauth.DeviceArgs{
+			DeviceType:      params.Device.DeviceType,
+			DeviceHash:      deviceHash.(uuid.UUID),
+			Platform:        params.Device.Platform,
+			PlatformVersion: params.Device.PlatformVersion,
+			AppVersion:      params.Device.AppVersion,
+		},
+	})
+	if err != nil {
+		if errors.Is(err, svcauth.ErrUserAlreadyRegistered) {
+			_ = c.AbortWithError(http.StatusConflict, errors.New("user already registered")).
+				SetType(gin.ErrorTypePublic)
+			return
+		}
+		_ = c.AbortWithError(http.StatusInternalServerError, err).
+			SetType(gin.ErrorTypePrivate)
+		return
+	}
+	c.Header("Authorization", "Bearer "+token)
 	c.JSON(http.StatusOK, gin.H{"user": UserResponse{
 		ID:       user.ID,
 		Username: user.Username,

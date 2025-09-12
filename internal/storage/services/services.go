@@ -2,9 +2,10 @@ package services
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
 	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo"
-	"time"
 
 	"github.com/fsdevblog/gophkeeper/internal/config"
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth"
@@ -43,7 +44,7 @@ func (c *Collection) initServices(conn *pgxpool.Pool) error {
 
 func (c *Collection) initUOW(conn *pgxpool.Pool) (*uow.UnitOfWork, error) {
 	unitOfWork := uow.New(conn)
-	var repos = make(map[uow.RepoName]uow.RepositoryFactory, 2)
+	var repos = make(map[uow.RepoName]uow.RepositoryFactory, 2) //nolint:mnd
 	{
 		repos[uow.RepoName(dto.UserRepoName)] = func(dbtx uow.DBTX) uow.Repository {
 			return pgrepo.NewUserRepo(dbtx)

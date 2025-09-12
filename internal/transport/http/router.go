@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/fsdevblog/gophkeeper/internal/storage/services"
 	"go.uber.org/zap"
 
 	"github.com/fsdevblog/gophkeeper/internal/transport/http/middlewares"
@@ -16,9 +15,17 @@ const (
 )
 
 type InitArgs struct {
-	JWTSecret []byte
-	Services  *services.Collection
-	Logger    *zap.Logger
+	JWTSecret   []byte
+	AuthService AuthService
+	Logger      *zap.Logger
+}
+
+func MustNew(params InitArgs) *gin.Engine {
+	r, err := New(params)
+	if err != nil {
+		panic(err)
+	}
+	return r
 }
 
 func New(params InitArgs) (*gin.Engine, error) {
@@ -26,7 +33,7 @@ func New(params InitArgs) (*gin.Engine, error) {
 		return nil, fmt.Errorf("initialize router: %w", err)
 	}
 
-	authHandler := NewAuthHandler(params.Services.AuthService)
+	authHandler := NewAuthHandler(params.AuthService)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -36,7 +43,8 @@ func New(params InitArgs) (*gin.Engine, error) {
 	r.Use(middlewares.Device())
 
 	api := r.Group("/api")
-	api.POST("/login", middlewares.NonAuthRequired(params.JWTSecret), authHandler.Login)
+	api.POST("/auth/login", middlewares.NonAuthRequired(params.JWTSecret), authHandler.Login)
+	api.POST("/auth/register", middlewares.NonAuthRequired(params.JWTSecret), authHandler.Register)
 
 	api.Use(middlewares.AuthRequired(params.JWTSecret))
 	// JWT middleware protects all routes below of an api group

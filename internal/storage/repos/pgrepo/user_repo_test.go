@@ -1,8 +1,9 @@
 package pgrepo
 
 import (
-	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo/dbtest"
 	"testing"
+
+	"github.com/fsdevblog/gophkeeper/internal/storage/repos/pgrepo/dbtest"
 
 	"github.com/fsdevblog/gophkeeper/internal/storage/repos"
 	repodto "github.com/fsdevblog/gophkeeper/internal/storage/repos/dto"
