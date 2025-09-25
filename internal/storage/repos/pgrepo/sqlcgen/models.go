@@ -24,6 +24,26 @@ type Device struct {
 	LastActiveAt    pgtype.Timestamptz
 }
 
+type Entry struct {
+	ID        uuid.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	Type      models.EntryType
+	UserID    uuid.UUID
+	DeviceID  uuid.UUID
+	Title     string
+}
+
+type EntryField struct {
+	ID        uuid.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	EntryID   uuid.UUID
+	Key       models.EntryFieldKeyType
+	Value     []byte
+	IsPrivate bool
+}
+
 type User struct {
 	ID                uuid.UUID
 	CreatedAt         pgtype.Timestamptz

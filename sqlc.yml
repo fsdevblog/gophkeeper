@@ -17,3 +17,11 @@ sql:
             go_type:
               type: "DeviceType"
               import: "github.com/fsdevblog/gophkeeper/internal/domain/models"
+          - column: "entries.type"
+            go_type:
+              type: "EntryType"
+              import: "github.com/fsdevblog/gophkeeper/internal/domain/models"
+          - column: "entry_fields.key"
+            go_type:
+              type: "EntryFieldKeyType"
+              import: "github.com/fsdevblog/gophkeeper/internal/domain/models"

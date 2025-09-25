@@ -15,9 +15,10 @@ const (
 )
 
 type InitArgs struct {
-	JWTSecret   []byte
-	AuthService AuthService
-	Logger      *zap.Logger
+	JWTSecret     []byte
+	AuthProvider  AuthProvider
+	EntryProvider EntryProvider
+	Logger        *zap.Logger
 }
 
 func MustNew(params InitArgs) *gin.Engine {
@@ -33,7 +34,8 @@ func New(params InitArgs) (*gin.Engine, error) {
 		return nil, fmt.Errorf("initialize router: %w", err)
 	}
 
-	authHandler := NewAuthHandler(params.AuthService)
+	authHandler := NewAuthHandler(params.AuthProvider)
+	entryHandler := NewEntriesHandler(params.EntryProvider)
 
 	r := gin.New()
 	r.Use(gin.Recovery())
@@ -48,5 +50,7 @@ func New(params InitArgs) (*gin.Engine, error) {
 
 	api.Use(middlewares.AuthRequired(params.JWTSecret))
 	// JWT middleware protects all routes below of an api group
+	api.GET("/entries", entryHandler.GetAll)
+	api.GET("/entries/:entryID/fields", entryHandler.GetEntryFields)
 	return r, nil
 }

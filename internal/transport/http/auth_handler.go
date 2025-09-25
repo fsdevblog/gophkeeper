@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fsdevblog/gophkeeper/internal/domain/models"
+	"github.com/fsdevblog/gophkeeper/internal/transport/http/dto"
+
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth"
 	"github.com/fsdevblog/gophkeeper/internal/transport/http/middlewares"
 	"github.com/gin-gonic/gin"
@@ -15,32 +16,13 @@ import (
 )
 
 type AuthHandler struct {
-	authService AuthService
+	authService AuthProvider
 }
 
-func NewAuthHandler(authService AuthService) *AuthHandler {
+func NewAuthHandler(authService AuthProvider) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 	}
-}
-
-// DeviceParams fields for device registration. DeviceHash must present in each HTTP header.
-type DeviceParams struct {
-	DeviceType      models.DeviceType `binding:"required" json:"deviceType"`
-	Platform        string            `binding:"required,max=32" json:"platform"`
-	PlatformVersion string            `binding:"required,max=16" json:"platformVersion"`
-	AppVersion      string            `binding:"required,max=16" json:"appVersion"`
-}
-
-type AuthenticateParams struct {
-	Username string       `binding:"required,min=1,max=15" json:"username"`
-	Password string       `binding:"required,min=6,max_bytes=72" json:"password"`
-	Device   DeviceParams `binding:"required"              json:"device"`
-}
-
-type UserResponse struct {
-	ID       uuid.UUID `json:"id"`
-	Username string    `json:"username"`
 }
 
 func (a *AuthHandler) Ping(c *gin.Context) {
@@ -48,19 +30,11 @@ func (a *AuthHandler) Ping(c *gin.Context) {
 }
 
 func (a *AuthHandler) Login(c *gin.Context) {
-	var params AuthenticateParams
-	deviceHash, _ := c.Get(middlewares.DeviceHashContextKey)
-
-	if errBind := c.ShouldBindJSON(&params); errBind != nil {
-		var errValidator validator.ValidationErrors
-		if errors.As(errBind, &errValidator) {
-			_ = c.AbortWithError(http.StatusUnprocessableEntity, errBind).
-				SetType(gin.ErrorTypeBind)
-			return
-		}
-		c.AbortWithStatus(http.StatusBadRequest)
+	params, bindOk := bindAs[dto.AuthenticateParams](c)
+	if !bindOk {
 		return
 	}
+	deviceHash, _ := c.Get(middlewares.DeviceHashContextKey)
 
 	ctx, cancel := context.WithTimeout(c, DefaultServiceTimeout)
 	defer cancel()
@@ -89,31 +63,20 @@ func (a *AuthHandler) Login(c *gin.Context) {
 	}
 	c.Header("Authorization", "Bearer "+token)
 
-	c.JSON(http.StatusOK, gin.H{"user": UserResponse{
+	c.JSON(http.StatusOK, gin.H{"user": dto.UserItem{
 		ID:       user.ID,
 		Username: user.Username,
 	}})
 }
 
-type RegisterParams struct {
-	Username string       `binding:"required,min=1,max=15" json:"username"`
-	Password string       `binding:"required,min=6,max_bytes=72" json:"password"`
-	Device   DeviceParams `binding:"required"              json:"device"`
-}
-
 func (a *AuthHandler) Register(c *gin.Context) {
-	var params RegisterParams
-	deviceHash, _ := c.Get(middlewares.DeviceHashContextKey)
-	if errBind := c.ShouldBindJSON(&params); errBind != nil {
-		var errValidator validator.ValidationErrors
-		if errors.As(errBind, &errValidator) {
-			_ = c.AbortWithError(http.StatusUnprocessableEntity, errBind).
-				SetType(gin.ErrorTypeBind)
-			return
-		}
-		c.AbortWithStatus(http.StatusBadRequest)
+	params, bindOk := bindAs[dto.RegisterParams](c)
+	if !bindOk {
 		return
 	}
+
+	deviceHash, _ := c.Get(middlewares.DeviceHashContextKey)
+
 	ctx, cancel := context.WithTimeout(c, DefaultServiceTimeout)
 	defer cancel()
 	token, user, err := a.authService.Register(ctx, svcauth.RegisterArgs{
@@ -121,7 +84,7 @@ func (a *AuthHandler) Register(c *gin.Context) {
 		Password: strings.TrimSpace(params.Password),
 		Device: svcauth.DeviceArgs{
 			DeviceType:      params.Device.DeviceType,
-			DeviceHash:      deviceHash.(uuid.UUID),
+			DeviceHash:      deviceHash.(uuid.UUID), //nolint:errcheck
 			Platform:        params.Device.Platform,
 			PlatformVersion: params.Device.PlatformVersion,
 			AppVersion:      params.Device.AppVersion,
@@ -138,8 +101,23 @@ func (a *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 	c.Header("Authorization", "Bearer "+token)
-	c.JSON(http.StatusOK, gin.H{"user": UserResponse{
+	c.JSON(http.StatusOK, gin.H{"user": dto.UserItem{
 		ID:       user.ID,
 		Username: user.Username,
 	}})
+}
+
+func bindAs[T any](c *gin.Context) (*T, bool) {
+	var params T
+	if errBind := c.ShouldBindJSON(&params); errBind != nil {
+		var errValidator validator.ValidationErrors
+		if errors.As(errBind, &errValidator) {
+			_ = c.AbortWithError(http.StatusUnprocessableEntity, errBind).
+				SetType(gin.ErrorTypeBind)
+			return nil, false
+		}
+		c.AbortWithStatus(http.StatusBadRequest)
+		return nil, false
+	}
+	return &params, true
 }

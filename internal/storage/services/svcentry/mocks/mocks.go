@@ -113,17 +113,17 @@ func (m *MockEntryFieldRepository) EXPECT() *MockEntryFieldRepositoryMockRecorde
 }
 
 // BatchCreate mocks base method.
-func (m *MockEntryFieldRepository) BatchCreate(ctx context.Context, entryID uuid.UUID, fields []dto.CreateEntryFieldArgs, resultRow func(int, *models.EntryField, error)) error {
+func (m *MockEntryFieldRepository) BatchCreate(ctx context.Context, fields []dto.CreateEntryFieldArgs, resultRow func(int, *models.EntryField, error)) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BatchCreate", ctx, entryID, fields, resultRow)
+	ret := m.ctrl.Call(m, "BatchCreate", ctx, fields, resultRow)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
 // BatchCreate indicates an expected call of BatchCreate.
-func (mr *MockEntryFieldRepositoryMockRecorder) BatchCreate(ctx, entryID, fields, resultRow any) *gomock.Call {
+func (mr *MockEntryFieldRepositoryMockRecorder) BatchCreate(ctx, fields, resultRow any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCreate", reflect.TypeOf((*MockEntryFieldRepository)(nil).BatchCreate), ctx, entryID, fields, resultRow)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchCreate", reflect.TypeOf((*MockEntryFieldRepository)(nil).BatchCreate), ctx, fields, resultRow)
 }
 
 // GetFieldsByEntryIDs mocks base method.
@@ -139,4 +139,19 @@ func (m *MockEntryFieldRepository) GetFieldsByEntryIDs(ctx context.Context, entr
 func (mr *MockEntryFieldRepositoryMockRecorder) GetFieldsByEntryIDs(ctx, entryIDs any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFieldsByEntryIDs", reflect.TypeOf((*MockEntryFieldRepository)(nil).GetFieldsByEntryIDs), ctx, entryIDs)
+}
+
+// GetUserFieldsByEntryID mocks base method.
+func (m *MockEntryFieldRepository) GetUserFieldsByEntryID(ctx context.Context, entryID, userID uuid.UUID) ([]models.EntryField, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserFieldsByEntryID", ctx, entryID, userID)
+	ret0, _ := ret[0].([]models.EntryField)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserFieldsByEntryID indicates an expected call of GetUserFieldsByEntryID.
+func (mr *MockEntryFieldRepositoryMockRecorder) GetUserFieldsByEntryID(ctx, entryID, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserFieldsByEntryID", reflect.TypeOf((*MockEntryFieldRepository)(nil).GetUserFieldsByEntryID), ctx, entryID, userID)
 }

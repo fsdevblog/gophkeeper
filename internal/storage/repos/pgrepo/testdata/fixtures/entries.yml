@@ -1,0 +1,10 @@
+- id: 1f94b403-a698-4098-b806-8896c9f37b60
+  type: auth
+  user_id: 5aa9061c-c62e-4588-8dac-2639a4f42349
+  device_id: 229e6592-befe-4dad-bbe6-4e67fdea5e57
+  title: record 1
+- id: 870ca9c1-bf1a-4731-85d5-2b8b9acba8b3
+  type: ssh
+  user_id: 5aa9061c-c62e-4588-8dac-2639a4f42349
+  device_id: 229e6592-befe-4dad-bbe6-4e67fdea5e57
+  title: record 1

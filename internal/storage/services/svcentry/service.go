@@ -150,7 +150,6 @@ func (e *EntryService) CreateEntry(ctx context.Context, args CreateEntryArgs) (*
 		var createdFields = make([]models.EntryField, len(args.EntryFields))
 		errBatch := fieldRepo.BatchCreate(
 			doCtx,
-			entry.ID,
 			fields2Create,
 			func(i int, field *models.EntryField, err error) {
 				if err != nil {
@@ -176,4 +175,25 @@ func (e *EntryService) CreateEntry(ctx context.Context, args CreateEntryArgs) (*
 		return nil, fmt.Errorf("creating entry: %w", err)
 	}
 	return entry, nil
+}
+
+func (e *EntryService) GetSafeEntryFields(
+	ctx context.Context,
+	userID uuid.UUID,
+	entryID uuid.UUID,
+) ([]models.EntryField, error) {
+	repo, errRepo := uow.GetRepositoryAs[EntryFieldRepository](e.uow, uow.RepoName(repodto.EntryFieldRepoName))
+	if errRepo != nil {
+		return nil, fmt.Errorf("GetSafeEntryFields: %w", errRepo)
+	}
+	fields, err := repo.GetUserFieldsByEntryID(ctx, entryID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("GetSafeEntryFields: %w", err)
+	}
+	for i, field := range fields {
+		if field.IsPrivate {
+			fields[i].Value = nil
+		}
+	}
+	return fields, nil
 }

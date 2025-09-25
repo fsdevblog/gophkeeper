@@ -3,6 +3,5 @@
   username: "first-username"
   encrypted_password: "$2a$10$LJoaQ51BB5zNkpEdL97PzuuJf6N0gdEQih7uI2f3.SZXg/aYAkBX6" # first-username
 # второй юзер
-- id: 6b1c263b-02c2-43f7-91eb-c6743ae95f18
-  username: "second-username"
+- username: "second-username"
   encrypted_password: "$2a$10$165tMs4GrTk4u2v3TOEYrOH7VWu0SUQDVG4W0Fnz0ZE1YbnDy49FK" # second-username

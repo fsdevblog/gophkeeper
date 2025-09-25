@@ -13,7 +13,8 @@ type CreateEntryArgs struct {
 }
 
 type CreateEntryFieldArgs struct {
-	EntryID uuid.UUID
-	Key     models.EntryFieldKeyType
-	Value   []byte
+	EntryID   uuid.UUID
+	Key       models.EntryFieldKeyType
+	Value     []byte
+	IsPrivate bool
 }

@@ -19,9 +19,9 @@ type EntryRepository interface {
 type EntryFieldRepository interface {
 	BatchCreate(
 		ctx context.Context,
-		entryID uuid.UUID,
 		fields []repodto.CreateEntryFieldArgs,
 		resultRow func(i int, field *models.EntryField, err error),
 	) error
 	GetFieldsByEntryIDs(ctx context.Context, entryIDs []uuid.UUID) ([]models.EntryField, error)
+	GetUserFieldsByEntryID(ctx context.Context, entryID uuid.UUID, userID uuid.UUID) ([]models.EntryField, error)
 }

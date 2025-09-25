@@ -127,14 +127,13 @@ func (s *EntryServiceSuite) TestCreateEntry() {
 
 		// configure mock of EntryFieldRepository.
 		s.mockEntryFieldRepo.EXPECT().
-			BatchCreate(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+			BatchCreate(gomock.Any(), gomock.Any(), gomock.Any()).
 			DoAndReturn(func(
 				_ context.Context,
-				entryID uuid.UUID,
 				fields []repodto.CreateEntryFieldArgs,
 				_ func(i int, field *models.EntryField, err error),
 			) error {
-				s.Equal(createdEntryID, entryID)
+				s.Equal(createdEntryID, fields[0].EntryID)
 				s.Len(fields, len(testingArgs.EntryFields))
 				return nil
 			}).Times(1)
@@ -234,6 +233,50 @@ func (s *EntryServiceSuite) TestGetUserEntries() {
 	s.Require().NoError(err)
 	s.Equal(int64(len(wantEntries)), totalRecords)
 	s.Equal(wantEntryFields, entries[0].EntryFields)
+}
+
+func (s *EntryServiceSuite) TestGetSafeEntryFields() {
+	entryID := uuid.New()
+	userID := uuid.New()
+	fields := []models.EntryField{
+		{
+			BaseModel: &models.BaseModel{
+				ID:        uuid.New(),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			EntryID:   entryID,
+			Key:       models.FieldKeyUsername,
+			Value:     []byte("test"),
+			IsPrivate: false,
+		}, {
+			BaseModel: &models.BaseModel{
+				ID:        uuid.New(),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+			EntryID:   entryID,
+			Key:       models.FieldKeyPassword,
+			Value:     []byte("password"),
+			IsPrivate: true,
+		},
+	}
+	s.mockEntryFieldRepo.
+		EXPECT().
+		GetUserFieldsByEntryID(gomock.Any(), entryID, userID).
+		Return(fields, nil).
+		Times(1)
+
+	svc := New(s.mockUOW)
+	gotFields, err := svc.GetSafeEntryFields(s.T().Context(), userID, entryID)
+	s.Require().NoError(err)
+	for _, field := range gotFields {
+		if field.IsPrivate {
+			s.Nil(field.Value)
+			continue
+		}
+		s.NotNil(field.Value)
+	}
 }
 
 func (s *EntryServiceSuite) repoFactory(repoName uow.RepoName) (uow.Repository, error) {

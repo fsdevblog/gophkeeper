@@ -15,7 +15,7 @@ const (
 type EntryField struct {
 	*BaseModel
 	EntryID   uuid.UUID
-	Key       string
+	Key       EntryFieldKeyType
 	Value     []byte
 	IsPrivate bool
 }

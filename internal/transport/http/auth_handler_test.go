@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/fsdevblog/gophkeeper/internal/transport/http/dto"
+
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/fsdevblog/gophkeeper/internal/domain/models"
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth"
@@ -25,7 +27,7 @@ type AuthHandlerSuite struct {
 	suite.Suite
 	router    *gin.Engine
 	ctrl      *gomock.Controller
-	mockAuth  *mocks.MockAuthService
+	mockAuth  *mocks.MockAuthProvider
 	jwtSecret []byte
 }
 
@@ -36,12 +38,12 @@ func TestAuthHandlers(t *testing.T) {
 func (s *AuthHandlerSuite) SetupTest() {
 	// configure authenticate
 	s.ctrl = gomock.NewController(s.T())
-	s.mockAuth = mocks.NewMockAuthService(s.ctrl)
+	s.mockAuth = mocks.NewMockAuthProvider(s.ctrl)
 	s.jwtSecret = []byte("secret")
 	s.router = MustNew(InitArgs{
-		JWTSecret:   s.jwtSecret,
-		AuthService: s.mockAuth,
-		Logger:      zap.NewNop(),
+		JWTSecret:    s.jwtSecret,
+		AuthProvider: s.mockAuth,
+		Logger:       zap.NewNop(),
 	})
 }
 
@@ -59,10 +61,10 @@ func (s *AuthHandlerSuite) TestLogin() {
 		Username:          "valid-user",
 		EncryptedPassword: "<ENCRYPTED_PASSWORD>",
 	}
-	validRequestArgs := AuthenticateParams{
+	validRequestArgs := dto.AuthenticateParams{
 		Username: validUser.Username,
 		Password: "<PASSWORD>",
-		Device: DeviceParams{
+		Device: dto.DeviceParams{
 			DeviceType:      models.DeviceTypeCLI,
 			Platform:        "ubuntu linux",
 			PlatformVersion: gofakeit.AppVersion(),
@@ -87,7 +89,7 @@ func (s *AuthHandlerSuite) TestLogin() {
 
 	tests := []struct {
 		name        string
-		requestArgs AuthenticateParams
+		requestArgs dto.AuthenticateParams
 		clientUUID  uuid.UUID
 		wantStatus  int
 	}{
@@ -109,7 +111,7 @@ func (s *AuthHandlerSuite) TestLogin() {
 			wantStatus:  http.StatusBadRequest,
 		}, {
 			name: "empty device params",
-			requestArgs: AuthenticateParams{
+			requestArgs: dto.AuthenticateParams{
 				Username: validUser.Username,
 				Password: "<PASSWORD>",
 			},
@@ -153,10 +155,10 @@ func (s *AuthHandlerSuite) TestRegister() {
 		},
 		Username: "valid-user",
 	}
-	validRequestArgs := RegisterParams{
+	validRequestArgs := dto.RegisterParams{
 		Username: "valid-user",
 		Password: "<PASSWORD>",
-		Device: DeviceParams{
+		Device: dto.DeviceParams{
 			DeviceType:      models.DeviceTypeCLI,
 			Platform:        gofakeit.Word(),
 			PlatformVersion: gofakeit.AppVersion(),
@@ -169,7 +171,7 @@ func (s *AuthHandlerSuite) TestRegister() {
 
 	tests := []struct {
 		name          string
-		requestParams RegisterParams
+		requestParams dto.RegisterParams
 		wantStatus    int
 		clientUUID    uuid.UUID
 	}{
@@ -190,9 +192,10 @@ func (s *AuthHandlerSuite) TestRegister() {
 		EXPECT().
 		Register(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, args svcauth.RegisterArgs) (string, *models.User, error) {
-			if args.Username == validRequestArgs.Username {
+			switch args.Username {
+			case validRequestArgs.Username:
 				return "token", &validUser, nil
-			} else if args.Username == existingUserArgs.Username {
+			case existingUserArgs.Username:
 				return "", nil, svcauth.ErrUserAlreadyRegistered
 			}
 			return "", nil, errors.New("")
