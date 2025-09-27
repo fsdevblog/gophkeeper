@@ -39,7 +39,8 @@ func New(params InitArgs) (*gin.Engine, error) {
 
 	r := gin.New()
 	r.Use(gin.Recovery())
-	r.Use(middlewares.LoggerMiddleware(params.Logger))
+	r.Use(middlewares.Errors())
+	r.Use(middlewares.Logger(params.Logger))
 	r.GET("/ping", authHandler.Ping)
 
 	r.Use(middlewares.Device())

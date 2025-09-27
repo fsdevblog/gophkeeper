@@ -20,8 +20,10 @@ func Device() gin.HandlerFunc {
 		hashStr := c.GetHeader(DeviceHashHeaderKey)
 		hashUUID, errParse := uuid.Parse(hashStr)
 		if errParse != nil {
-			_ = c.AbortWithError(http.StatusBadRequest, errors.New("invalid device hash")).
+			_ = c.Error(errors.New("invalid device hash")).
 				SetType(gin.ErrorTypePublic)
+			c.Status(http.StatusBadRequest)
+			c.Abort()
 			return
 		}
 		c.Set(DeviceHashContextKey, hashUUID)

@@ -6,9 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/fsdevblog/gophkeeper/internal/transport/http/dto"
-
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth"
+	"github.com/fsdevblog/gophkeeper/internal/transport/http/dto"
 	"github.com/fsdevblog/gophkeeper/internal/transport/http/middlewares"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -112,8 +111,9 @@ func bindAs[T any](c *gin.Context) (*T, bool) {
 	if errBind := c.ShouldBindJSON(&params); errBind != nil {
 		var errValidator validator.ValidationErrors
 		if errors.As(errBind, &errValidator) {
-			_ = c.AbortWithError(http.StatusUnprocessableEntity, errBind).
+			_ = c.Error(errBind).
 				SetType(gin.ErrorTypeBind)
+			c.Status(http.StatusUnprocessableEntity)
 			return nil, false
 		}
 		c.AbortWithStatus(http.StatusBadRequest)

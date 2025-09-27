@@ -1,7 +1,10 @@
 DATABASE_DSN=postgres://gophkeeper-user:123123123@localhost:5436/postgres?sslmode=disable
 
-CMD_DIR=cmd/gophkeeper
-BINARY=gophkeeper
+SERVER_DIR=cmd/gophkeeper
+CLI_DIR=cmd/cli
+
+SERVER_BINARY=../../bin/gophkeeper
+CLI_BINARY=../../bin/cli_gophkeeper
 
 db-up:
 	docker compose up -d postgres
@@ -15,7 +18,11 @@ app-up:	db-up
 
 
 app-build:
-	cd $(CMD_DIR) && go build -ldflags "-X main.buildVersion=1.0.0 -X main.buildDate=$$(date +%Y-%m-%d) -X main.buildCommit=$$(git rev-parse --short HEAD)" -o $(BINARY) *.go
+	cd $(SERVER_DIR) && go build -ldflags "-X main.buildVersion=1.0.0 -X main.buildDate=$$(date +%Y-%m-%d) -X main.buildCommit=$$(git rev-parse --short HEAD)" -o $(SERVER_BINARY) *.go
+cli-build:
+	cd $(CLI_DIR) && go build -ldflags "-X main.buildVersion=1.0.0 -X main.buildDate=$$(date +%Y-%m-%d) -X main.buildCommit=$$(git rev-parse --short HEAD)" -o $(CLI_BINARY) *.go
+
+build: app-build cli-build
 
 # Создать миграцию
 migrate-create:

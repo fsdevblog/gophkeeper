@@ -14,7 +14,8 @@
 .env
 
 # Binaries
-cmd/gophkeeper/gophkeeper
+bin/*
+!bin/.keep
 
 cmd/test
 backup.json

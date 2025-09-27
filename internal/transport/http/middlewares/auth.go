@@ -10,6 +10,12 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+var (
+	// ErrTokenNotExist is returned when the authorization token is missing from the request
+	// or has an invalid format.
+	ErrTokenNotExist = errors.New("token not exist")
+)
+
 // CurrentUserIDKey is the context key for storing the current user's ID.
 const CurrentUserIDKey = "currentUserID"
 
@@ -53,17 +59,21 @@ func AuthRequired(jwtTokenSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := checkAuthorization(c, jwtTokenSecret)
 		if err != nil {
-			_ = c.AbortWithError(http.StatusUnauthorized, errors.New("auth required")).
+			_ = c.Error(errors.New("auth required")).
 				SetType(gin.ErrorTypePublic)
 			if !errors.Is(err, ErrTokenNotExist) {
 				_ = c.Error(err).SetType(gin.ErrorTypePrivate)
 			}
+			c.Status(http.StatusUnauthorized)
+			c.Abort()
 			return
 		}
 		userClaim, ok := token.Claims.(*tokens.UserClaims)
 		if !ok {
-			_ = c.AbortWithError(http.StatusInternalServerError, errors.New("invalid jwt claims type")).
+			_ = c.Error(errors.New("invalid jwt claims type")).
 				SetType(gin.ErrorTypePrivate)
+			c.Status(http.StatusInternalServerError)
+			c.Abort()
 			return
 		}
 		c.Set(CurrentUserIDKey, userClaim.ID)
@@ -83,8 +93,10 @@ func NonAuthRequired(jwtTokenSecret []byte) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		_, err := checkAuthorization(c, jwtTokenSecret)
 		if err == nil {
-			_ = c.AbortWithError(http.StatusUnauthorized, errors.New("you are already logged in")).
+			_ = c.Error(errors.New("you are already logged in")).
 				SetType(gin.ErrorTypePublic)
+			c.Status(http.StatusUnauthorized)
+			c.Abort()
 			return
 		}
 

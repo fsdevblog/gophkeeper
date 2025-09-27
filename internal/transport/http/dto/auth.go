@@ -13,10 +13,10 @@ type RegisterParams struct {
 
 // DeviceParams fields for device registration. DeviceHash must present in each HTTP header.
 type DeviceParams struct {
-	DeviceType      models.DeviceType `binding:"required"        json:"deviceType"`
+	DeviceType      models.DeviceType `binding:"required"        json:"device_type"`
 	Platform        string            `binding:"required,max=32" json:"platform"`
-	PlatformVersion string            `binding:"required,max=16" json:"platformVersion"`
-	AppVersion      string            `binding:"required,max=16" json:"appVersion"`
+	PlatformVersion string            `binding:"required,max=16" json:"platform_version"`
+	AppVersion      string            `binding:"required,max=16" json:"app_version"`
 }
 
 type AuthenticateParams struct {

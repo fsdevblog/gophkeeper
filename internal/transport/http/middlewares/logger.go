@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// LoggerMiddleware создает middleware для логирования HTTP запросов.
+// Logger создает middleware для логирования HTTP запросов.
 // Должен быть первым в цепочке middleware для корректного логирования всех этапов обработки запроса.
 //
 // Логирует следующую информацию:
@@ -33,7 +33,7 @@ import (
 //
 // Возвращает:
 //   - gin.HandlerFunc: middleware функция
-func LoggerMiddleware(logger *zap.Logger) gin.HandlerFunc {
+func Logger(logger *zap.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if logger == nil {
 			c.Next()
