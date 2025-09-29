@@ -9,7 +9,7 @@ import (
 	"github.com/fsdevblog/gophkeeper/internal/cliapp/api"
 )
 
-func (m *Model) handleLogin(ctx context.Context, userInput string) (tea.Model, tea.Cmd) {
+func (m *Model) handleLogin(ctx context.Context, userInput string) tea.Cmd {
 	var cmd tea.Cmd
 	switch userInput {
 	case shiftTab:
@@ -17,7 +17,7 @@ func (m *Model) handleLogin(ctx context.Context, userInput string) (tea.Model, t
 	case tab:
 		cmd = m.loginForm.IncrementFocus()
 	case esc:
-		m.CurrentState = AppStateMain
+		m.currentState = AppStateMain
 	case enter:
 		if m.loginForm.IsValid() {
 			_, err := m.api.Login(ctx, api.LoginParams{
@@ -28,34 +28,46 @@ func (m *Model) handleLogin(ctx context.Context, userInput string) (tea.Model, t
 				var errResponse *api.UnexpectedHTTPStatusCodeError
 				if errors.As(err, &errResponse) && errResponse.StatusCode == http.StatusUnauthorized {
 					m.alertBanner = "wrong username or password"
-					return m, nil
+					return nil
 				}
 				m.alertBanner = err.Error()
 			}
 		}
 	}
-	return m, cmd
+	return cmd
 }
 
-func (m *Model) handleRegister(ctx context.Context, userInput string) (tea.Model, tea.Cmd) {
+func (m *Model) handleRegister(ctx context.Context, userInput string) tea.Cmd {
 	var cmd tea.Cmd
 	switch userInput {
-	case shiftTab:
+	case shiftTab, up:
 		cmd = m.registerForm.DecrementFocus()
-	case tab:
+	case tab, down:
 		cmd = m.registerForm.IncrementFocus()
 	case esc:
-		m.CurrentState = AppStateMain
+		m.currentState = AppStateMain
 	case enter:
-		if err := m.registerForm.Submit(ctx); err != nil {
+		result, err := m.registerForm.Submit(ctx)
+		if err != nil {
 			m.alertBanner = err.Error()
-			return m, nil
+			return nil
 		}
+
+		user := User{
+			Username: result.Username,
+			ID:       result.ID,
+		}
+		if errAuth := m.authenticateUser(user, result.Token); errAuth != nil {
+			m.alertBanner = errAuth.Error()
+			return nil
+		}
+
+		m.currentState = AppStateAuthorizedMain
 	}
-	return m, cmd
+	return cmd
 }
 
-func (m *Model) handleMain(userInput string) (tea.Model, tea.Cmd) {
+func (m *Model) handleMain(userInput string) {
 	switch userInput {
 	case up:
 		m.mainMenu.Prev()
@@ -64,10 +76,9 @@ func (m *Model) handleMain(userInput string) (tea.Model, tea.Cmd) {
 	case enter:
 		switch m.mainMenu.GetSelected() {
 		case MMChoiceLogin:
-			m.CurrentState = AppStateLogin
+			m.currentState = AppStateLogin
 		case MMChoiceRegister:
-			m.CurrentState = AppStateRegister
+			m.currentState = AppStateRegister
 		}
 	}
-	return m, nil
 }

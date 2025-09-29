@@ -1,5 +1,7 @@
 package api
 
+import "github.com/google/uuid"
+
 type DeviceRequest struct {
 	DeviceType      string `json:"device_type"`
 	Platform        string `json:"platform"`
@@ -32,8 +34,8 @@ type RegisterParams struct {
 }
 
 type RegisterResponse struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
 }
 
 type RegisterRequest struct {

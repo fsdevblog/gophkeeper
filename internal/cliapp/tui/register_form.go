@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
+
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -61,19 +63,25 @@ func NewRegisterForm(apiClient *api.Client) *RegisterForm {
 	}
 }
 
-func (r *RegisterForm) Submit(ctx context.Context) error {
+type RegisterResult struct {
+	Username string
+	ID       uuid.UUID
+	Token    string
+}
+
+func (r *RegisterForm) Submit(ctx context.Context) (*RegisterResult, error) {
 	if !r.IsValid() {
-		return ErrInvalidForm
+		return nil, ErrInvalidForm
 	}
 	if r.isSubmitting {
-		return ErrAlreadySubmitting
+		return nil, ErrAlreadySubmitting
 	}
 	r.isSubmitting = true
 	defer func() {
 		r.isSubmitting = false
 	}()
 
-	_, err := r.api.Register(ctx, api.RegisterParams{
+	resp, token, err := r.api.Register(ctx, api.RegisterParams{
 		Username: r.Username.Value(),
 		Password: r.Password.Value(),
 	})
@@ -82,14 +90,18 @@ func (r *RegisterForm) Submit(ctx context.Context) error {
 		if errors.As(err, &errResponse) {
 			switch errResponse.StatusCode {
 			case http.StatusConflict:
-				return ErrUserAlreadyExists
+				return nil, ErrUserAlreadyExists
 			default:
-				return fmt.Errorf("register: %w", errResponse)
+				return nil, fmt.Errorf("register: %w", errResponse)
 			}
 		}
-		return fmt.Errorf("register: %w", err)
+		return nil, fmt.Errorf("register: %w", err)
 	}
-	return nil
+	return &RegisterResult{
+		Username: resp.Username,
+		ID:       resp.ID,
+		Token:    token,
+	}, nil
 }
 
 func (r *RegisterForm) UpdateValues(msg tea.Msg) tea.Cmd {

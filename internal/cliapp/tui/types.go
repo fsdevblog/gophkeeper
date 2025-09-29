@@ -18,6 +18,8 @@ const (
 	AppStateMain appState = iota
 	AppStateLogin
 	AppStateRegister
+
+	AppStateAuthorizedMain
 )
 
 const (

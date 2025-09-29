@@ -100,10 +100,10 @@ func (a *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 	c.Header("Authorization", "Bearer "+token)
-	c.JSON(http.StatusOK, gin.H{"user": dto.UserItem{
+	c.JSON(http.StatusOK, dto.UserItem{
 		ID:       user.ID,
 		Username: user.Username,
-	}})
+	})
 }
 
 func bindAs[T any](c *gin.Context) (*T, bool) {

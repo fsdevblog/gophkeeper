@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/fsdevblog/gophkeeper/internal/cliapp/device"
 	"resty.dev/v3"
@@ -58,7 +60,7 @@ func (c *Client) Login(ctx context.Context, params LoginParams) (*LoginResponse,
 	return &resp, nil
 }
 
-func (c *Client) Register(ctx context.Context, params RegisterParams) (*RegisterResponse, error) {
+func (c *Client) Register(ctx context.Context, params RegisterParams) (*RegisterResponse, string, error) {
 	var resp RegisterResponse
 	var errResp ErrResponse
 	result, err := c.r.
@@ -80,11 +82,17 @@ func (c *Client) Register(ctx context.Context, params RegisterParams) (*Register
 		Post("/api/auth/register")
 
 	if err != nil {
-		return nil, fmt.Errorf("register request: %w", err)
+		return nil, "", fmt.Errorf("register request: %w", err)
 	}
 	if result.IsError() {
-		return nil, NewUnexpectedHTTPStatusCodeError(result.StatusCode(), errResp.Error)
+		return nil, "", NewUnexpectedHTTPStatusCodeError(result.StatusCode(), errResp.Error)
 	}
 
-	return &resp, nil
+	tokenHeader := result.Header().Get("Authorization")
+	if !strings.HasPrefix(tokenHeader, "Bearer ") {
+		return nil, "", errors.New("invalid token header")
+	}
+	token := tokenHeader[7:]
+
+	return &resp, token, nil
 }
