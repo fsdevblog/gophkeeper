@@ -2,11 +2,7 @@ package tui
 
 import (
 	"context"
-	"errors"
-	"net/http"
-
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/fsdevblog/gophkeeper/internal/cliapp/api"
 )
 
 func (m *Model) handleLogin(ctx context.Context, userInput string) tea.Cmd {
@@ -20,18 +16,22 @@ func (m *Model) handleLogin(ctx context.Context, userInput string) tea.Cmd {
 		m.currentState = AppStateMain
 	case enter:
 		if m.loginForm.IsValid() {
-			_, err := m.api.Login(ctx, api.LoginParams{
-				Username: m.loginForm.Username.Value(),
-				Password: m.loginForm.Password.Value(),
-			})
+			resp, err := m.loginForm.Submit(ctx)
 			if err != nil {
-				var errResponse *api.UnexpectedHTTPStatusCodeError
-				if errors.As(err, &errResponse) && errResponse.StatusCode == http.StatusUnauthorized {
-					m.alertBanner = "wrong username or password"
-					return nil
-				}
 				m.alertBanner = err.Error()
+				return nil
 			}
+
+			errAuth := m.authenticateUser(&User{
+				Username: resp.Username,
+				ID:       resp.ID,
+			}, resp.Token)
+
+			if errAuth != nil {
+				m.alertBanner = errAuth.Error()
+				return nil
+			}
+			m.currentState = AppStateAuthorizedMain
 		}
 	}
 	return cmd
@@ -57,7 +57,7 @@ func (m *Model) handleRegister(ctx context.Context, userInput string) tea.Cmd {
 			Username: result.Username,
 			ID:       result.ID,
 		}
-		if errAuth := m.authenticateUser(user, result.Token); errAuth != nil {
+		if errAuth := m.authenticateUser(&user, result.Token); errAuth != nil {
 			m.alertBanner = errAuth.Error()
 			return nil
 		}

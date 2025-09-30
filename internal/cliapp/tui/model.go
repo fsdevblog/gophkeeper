@@ -3,12 +3,12 @@ package tui
 import (
 	"context"
 	"fmt"
+	"github.com/charmbracelet/bubbles/cursor"
 	"strings"
 	"time"
 
 	"github.com/zalando/go-keyring"
 
-	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsdevblog/gophkeeper/internal/cliapp/api"
@@ -37,7 +37,7 @@ func NewModel() (*Model, error) {
 
 	return &Model{
 		currentState:   AppStateMain,
-		loginForm:      NewLoginForm(),
+		loginForm:      NewLoginForm(client),
 		registerForm:   NewRegisterForm(client),
 		mainMenu:       NewMainMenu(),
 		authorizedMain: authorizedMain,
@@ -57,6 +57,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	defer cancel()
 
 	switch t := msg.(type) {
+	case cursor.BlinkMsg:
+		return m, m.UpdateForms(msg)
 	case tea.KeyMsg:
 		userInput := t.String()
 		switch userInput {
@@ -90,8 +92,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-	case cursor.BlinkMsg:
-		return m, m.UpdateForms(msg)
 	}
 	return m, nil
 }
@@ -122,10 +122,10 @@ func (m Model) View() string {
 	return mainStyle.Render("\n" + b.String() + "\n\n")
 }
 
-func (m *Model) authenticateUser(user User, token string) error {
+func (m *Model) authenticateUser(user *User, token string) error {
 	if errStore := keyring.Set("gophkeeper", user.Username, token); errStore != nil {
 		return fmt.Errorf("authorize user: %w", errStore)
 	}
-	m.currentUser = &user
+	m.currentUser = user
 	return nil
 }

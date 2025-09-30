@@ -1,6 +1,12 @@
 package tui
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"github.com/fsdevblog/gophkeeper/internal/cliapp/api"
+	"github.com/google/uuid"
+	"net/http"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -11,10 +17,11 @@ import (
 type LoginForm struct {
 	Username   textinput.Model
 	Password   textinput.Model
+	api        *api.Client
 	focusIndex int
 }
 
-func NewLoginForm() *LoginForm {
+func NewLoginForm(apiClient *api.Client) *LoginForm {
 	username := textinput.New()
 	username.Placeholder = "Username"
 	username.CharLimit = 15
@@ -30,7 +37,37 @@ func NewLoginForm() *LoginForm {
 		Username:   username,
 		Password:   password,
 		focusIndex: 0,
+		api:        apiClient,
 	}
+}
+
+type LoginResult struct {
+	Username string
+	ID       uuid.UUID
+	Token    string
+}
+
+func (l *LoginForm) Submit(ctx context.Context) (*LoginResult, error) {
+	resp, token, err := l.api.Login(ctx, api.LoginParams{
+		Username: l.Username.Value(),
+		Password: l.Password.Value(),
+	})
+	if err != nil {
+		var errResponse *api.UnexpectedHTTPStatusCodeError
+		if errors.As(err, &errResponse) {
+			switch errResponse.StatusCode {
+			case http.StatusUnauthorized:
+				return nil, ErrLoginCredentialsWrong
+			}
+			return nil, fmt.Errorf("login: %w", errResponse)
+		}
+		return nil, fmt.Errorf("login: %w", err)
+	}
+	return &LoginResult{
+		Username: resp.Username,
+		ID:       resp.ID,
+		Token:    token,
+	}, nil
 }
 
 func (l *LoginForm) UpdateValues(msg tea.Msg) tea.Cmd {

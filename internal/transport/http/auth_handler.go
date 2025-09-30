@@ -62,10 +62,10 @@ func (a *AuthHandler) Login(c *gin.Context) {
 	}
 	c.Header("Authorization", "Bearer "+token)
 
-	c.JSON(http.StatusOK, gin.H{"user": dto.UserItem{
+	c.JSON(http.StatusOK, dto.UserItem{
 		ID:       user.ID,
 		Username: user.Username,
-	}})
+	})
 }
 
 func (a *AuthHandler) Register(c *gin.Context) {

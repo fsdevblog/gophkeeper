@@ -30,7 +30,7 @@ func New(baseURL string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Login(ctx context.Context, params LoginParams) (*LoginResponse, error) {
+func (c *Client) Login(ctx context.Context, params LoginParams) (*LoginResponse, string, error) {
 	var resp LoginResponse
 	var errResp ErrResponse
 
@@ -51,13 +51,19 @@ func (c *Client) Login(ctx context.Context, params LoginParams) (*LoginResponse,
 		SetError(&errResp).
 		Post("/api/auth/login")
 	if err != nil {
-		return nil, fmt.Errorf("authenticate request: %w", err)
+		return nil, "", fmt.Errorf("authenticate request: %w", err)
 	}
 	if result.IsError() {
-		return nil, NewUnexpectedHTTPStatusCodeError(result.StatusCode(), errResp.Error)
+		return nil, "", NewUnexpectedHTTPStatusCodeError(result.StatusCode(), errResp.Error)
 	}
 
-	return &resp, nil
+	tokenHeader := result.Header().Get("Authorization")
+	if !strings.HasPrefix(tokenHeader, "Bearer ") {
+		return nil, "", errors.New("invalid token header")
+	}
+	token := tokenHeader[7:]
+
+	return &resp, token, nil
 }
 
 func (c *Client) Register(ctx context.Context, params RegisterParams) (*RegisterResponse, string, error) {

@@ -19,8 +19,8 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
 }
 
 type LoginParams struct {
