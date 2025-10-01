@@ -2,6 +2,10 @@ package cliapp
 
 import (
 	"fmt"
+	"github.com/fsdevblog/gophkeeper/internal/cliapp/api"
+	"github.com/fsdevblog/gophkeeper/internal/cliapp/tui/auth"
+	"github.com/fsdevblog/gophkeeper/internal/cliapp/tui/starter"
+	"go.uber.org/zap"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/fsdevblog/gophkeeper/internal/cliapp/tui"
@@ -20,7 +24,10 @@ func New(p InitParams) *CLIApp {
 }
 
 func (a *CLIApp) Run() error {
-	state, errState := tui.NewModel()
+	apiClient := api.MustNew(a.baseURL)
+	authProvider := auth.New(apiClient, zap.NewNop())
+	state, errState := starter.New(tui.StatePublicMenu, authProvider)
+
 	if errState != nil {
 		return fmt.Errorf("run failed: %w", errState)
 	}

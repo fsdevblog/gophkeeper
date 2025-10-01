@@ -30,6 +30,14 @@ func New(baseURL string) (*Client, error) {
 	}, nil
 }
 
+func MustNew(baseURL string) *Client {
+	client, err := New(baseURL)
+	if err != nil {
+		panic(err)
+	}
+	return client
+}
+
 func (c *Client) Login(ctx context.Context, params LoginParams) (*LoginResponse, string, error) {
 	var resp LoginResponse
 	var errResp ErrResponse

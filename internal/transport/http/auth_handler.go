@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/fsdevblog/gophkeeper/internal/storage/services/svcauth"
 	"github.com/fsdevblog/gophkeeper/internal/transport/http/dto"
@@ -29,6 +30,7 @@ func (a *AuthHandler) Ping(c *gin.Context) {
 }
 
 func (a *AuthHandler) Login(c *gin.Context) {
+	time.Sleep(3 * time.Second)
 	params, bindOk := bindAs[dto.AuthenticateParams](c)
 	if !bindOk {
 		return
