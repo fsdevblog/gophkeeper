@@ -8,4 +8,5 @@ import (
 
 type AuthProvider interface {
 	Login(ctx context.Context, username string, password string) (*models.User, error)
+	Register(ctx context.Context, username string, password string) (*models.User, error)
 }

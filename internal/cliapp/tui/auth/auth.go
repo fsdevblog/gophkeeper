@@ -38,19 +38,63 @@ func (a *Auth) Login(ctx context.Context, username, password string) (*models.Us
 			case http.StatusUnprocessableEntity:
 				return nil, ErrIncorrectFieldsFormat
 			}
-			a.l.Error("login request", zap.Error(err))
+			a.l.Error("login request", zap.Error(errResp))
 			return nil, ErrUnknown
 		}
 		a.l.Error("login request", zap.Error(err))
 		return nil, ErrUnknown
 	}
-	if errSaveToken := keyring.Set(ServiceName, resp.Username, token); errSaveToken != nil {
-		a.l.Error("saving token", zap.Error(errSaveToken))
+	user := &models.User{
+		ID:       resp.ID,
+		Username: resp.Username,
+	}
+
+	if errAuthenticate := a.authenticateUser(user, token); errAuthenticate != nil {
+		return nil, errAuthenticate
+	}
+
+	return user, nil
+}
+
+func (a *Auth) Register(ctx context.Context, username string, password string) (*models.User, error) {
+	resp, token, err := a.api.Register(ctx, api.RegisterParams{
+		Username: username,
+		Password: password,
+	})
+	if err != nil {
+		var errResp *api.UnexpectedHTTPStatusCodeError
+		if errors.As(err, &errResp) {
+			switch errResp.StatusCode {
+			case http.StatusConflict:
+				return nil, ErrUserAlreadyExists
+			case http.StatusUnprocessableEntity:
+				return nil, ErrIncorrectFieldsFormat
+			case http.StatusUnauthorized:
+				return nil, ErrAlreadyLoggedIn
+			}
+			a.l.Error("register request", zap.Error(errResp))
+			return nil, ErrUnknown
+		}
+		a.l.Error("register request", zap.Error(err))
 		return nil, ErrUnknown
 	}
 
-	return &models.User{
+	user := &models.User{
 		ID:       resp.ID,
 		Username: resp.Username,
-	}, nil
+	}
+
+	if errAuthenticate := a.authenticateUser(user, token); errAuthenticate != nil {
+		return nil, errAuthenticate
+	}
+
+	return user, nil
+}
+
+func (a *Auth) authenticateUser(user *models.User, token string) error {
+	if errSaveToken := keyring.Set(ServiceName, user.Username, token); errSaveToken != nil {
+		a.l.Error("saving token", zap.Error(errSaveToken))
+		return ErrUnknown
+	}
+	return nil
 }

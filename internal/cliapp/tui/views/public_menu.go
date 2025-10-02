@@ -45,6 +45,8 @@ func (p PublicMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch p.choice {
 			case PublicMenuLogin:
 				return p, tui.ChangeStateCmd(tui.StateLogin)
+			case PublicMenuRegister:
+				return p, tui.ChangeStateCmd(tui.StateRegister)
 			}
 		case tea.KeyDown, tea.KeyShiftTab:
 			p.cursor++

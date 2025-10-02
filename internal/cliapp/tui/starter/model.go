@@ -81,6 +81,8 @@ func (m *Model) setChild() error {
 	switch m.state {
 	case tui.StateLogin:
 		m.child = views.NewLoginForm(m.authProvider)
+	case tui.StateRegister:
+		m.child = views.NewRegisterForm(m.authProvider)
 	case tui.StatePublicMenu:
 		m.child = views.NewPublicMenu()
 	case tui.StatePrivateMenu:

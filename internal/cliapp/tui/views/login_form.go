@@ -46,8 +46,6 @@ func NewLoginForm(authProvider AuthProvider) *LoginForm {
 	return &LoginForm{
 		formData:     formData,
 		form:         form,
-		width:        0,
-		height:       0,
 		authProvider: authProvider,
 	}
 }
@@ -84,6 +82,7 @@ func (m *LoginForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.form.State == huh.StateCompleted {
+		m.form.State = huh.StateNormal // во избежание повторных сабмитов формы.
 		ctx, cancel := context.WithTimeout(context.Background(), DefaultRequestTimeout)
 		defer cancel()
 		err := spinner.New().Context(ctx).ActionWithErr(func(ctx context.Context) error {
@@ -98,9 +97,21 @@ func (m *LoginForm) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			return m.resetForm(err.Error())
 		}
+		return m, tea.Batch(cmds...)
 	}
-
 	return m, tea.Batch(cmds...)
+}
+
+func (m *LoginForm) View() string {
+	b := new(strings.Builder)
+	b.WriteString(tui.Logo)
+	if m.errorMessage != "" {
+		b.WriteString("> " + m.errorMessage + "\n\n")
+	}
+	b.WriteString(m.form.View())
+
+	output := lipgloss.JoinVertical(lipgloss.Left, b.String())
+	return lipgloss.Place(m.width, m.height, lipgloss.Left, lipgloss.Left, output)
 }
 
 func (m *LoginForm) resetForm(message string) (*LoginForm, tea.Cmd) {
@@ -116,17 +127,4 @@ func (m *LoginForm) submit(ctx context.Context) (tea.Cmd, error) {
 		return nil, fmt.Errorf("login: %w", err)
 	}
 	return tui.AuthenticateUserCmd(user), nil
-}
-
-func (m *LoginForm) View() string {
-	b := new(strings.Builder)
-	b.WriteString(tui.Logo)
-	if m.errorMessage != "" {
-		b.WriteString("> " + m.errorMessage + "\n\n")
-	}
-	formView := m.form.View()
-	b.WriteString(formView)
-
-	output := lipgloss.JoinVertical(lipgloss.Center, b.String())
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, output)
 }

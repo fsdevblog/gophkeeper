@@ -71,6 +71,7 @@ func (a *AuthHandler) Login(c *gin.Context) {
 }
 
 func (a *AuthHandler) Register(c *gin.Context) {
+	time.Sleep(3 * time.Second)
 	params, bindOk := bindAs[dto.RegisterParams](c)
 	if !bindOk {
 		return
