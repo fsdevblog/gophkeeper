@@ -1,0 +1,9 @@
+- id: 229e6592-befe-4dad-bbe6-4e67fdea5e57
+  type: cli
+  user_id: 5aa9061c-c62e-4588-8dac-2639a4f42349
+  client_uuid: 20d0840a-c745-475c-99fc-4418ecc8ed69
+  platform: ubuntu linux
+  platform_version: "24.04"
+  state_version: 00000000-0000-0000-0000-000000000000
+  app_version: "0.0.1beta"
+  last_active_at: RAW=NOW()

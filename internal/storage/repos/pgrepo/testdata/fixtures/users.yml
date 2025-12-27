@@ -1,0 +1,7 @@
+# первый юзер
+- id: 5aa9061c-c62e-4588-8dac-2639a4f42349
+  username: "first-username"
+  encrypted_password: "$2a$10$LJoaQ51BB5zNkpEdL97PzuuJf6N0gdEQih7uI2f3.SZXg/aYAkBX6" # first-username
+# второй юзер
+- username: "second-username"
+  encrypted_password: "$2a$10$165tMs4GrTk4u2v3TOEYrOH7VWu0SUQDVG4W0Fnz0ZE1YbnDy49FK" # second-username

@@ -1,0 +1,27 @@
+version: "2"
+sql:
+  - engine: postgresql
+    queries: internal/storage/repos/pgrepo/queries
+    schema: internal/db/migrations
+    gen:
+      go:
+        package: sqlcgen
+        out: internal/storage/repos/pgrepo/sqlcgen
+        sql_package: pgx/v5
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - column: "devices.type"
+            go_type:
+              type: "DeviceType"
+              import: "github.com/fsdevblog/gophkeeper/internal/domain/models"
+          - column: "entries.type"
+            go_type:
+              type: "EntryType"
+              import: "github.com/fsdevblog/gophkeeper/internal/domain/models"
+          - column: "entry_fields.key"
+            go_type:
+              type: "EntryFieldKeyType"
+              import: "github.com/fsdevblog/gophkeeper/internal/domain/models"

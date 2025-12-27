@@ -14,8 +14,8 @@
 .env
 
 # Binaries
-cmd/shortener/main
-cmd/shortener/shortener
+bin/*
+!bin/.keep
 
 cmd/test
 backup.json
